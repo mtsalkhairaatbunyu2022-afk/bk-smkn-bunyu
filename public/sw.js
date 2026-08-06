@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bk-smkn1bunyu-v5';
+const CACHE_NAME = 'bk-smkn1bunyu-v6';
 
 // Core shell assets to pre-cache on install
 const PRECACHE_ASSETS = [
@@ -70,18 +70,20 @@ self.addEventListener('fetch', (event) => {
       fetch(req)
         .then((networkResponse) => {
           if (networkResponse && networkResponse.ok) {
-            const responseClone = networkResponse.clone();
+            const clone1 = networkResponse.clone();
+            const clone2 = networkResponse.clone();
             caches.open(CACHE_NAME).then((cache) => {
-              cache.put('/', responseClone);
+              cache.put('/', clone1);
+              cache.put('/index.html', clone2);
             });
           }
           return networkResponse;
         })
         .catch(() => {
-          // OFFLINE: Serve cached index.html or root
+          // OFFLINE: Serve cached root or index.html
           return caches.match('/')
             .then((res) => res || caches.match('/index.html'))
-            .then((res) => res || caches.match('./'));
+            .then((res) => res || caches.match(req));
         })
     );
     return;
@@ -95,7 +97,8 @@ self.addEventListener('fetch', (event) => {
         fetch(req)
           .then((networkResponse) => {
             if (networkResponse && networkResponse.ok) {
-              caches.open(CACHE_NAME).then((cache) => cache.put(req, networkResponse));
+              const clone = networkResponse.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
             }
           })
           .catch(() => {/* Ignore network errors offline */});

@@ -77,12 +77,18 @@ export default function App() {
   useEffect(() => {
     // Register Service Worker
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
+      const registerSW = () => {
         navigator.serviceWorker.register('/sw.js').then(
           (reg) => console.log('ServiceWorker registered with scope:', reg.scope),
           (err) => console.log('ServiceWorker registration failed:', err)
         );
-      });
+      };
+
+      if (document.readyState === 'complete') {
+        registerSW();
+      } else {
+        window.addEventListener('load', registerSW);
+      }
     }
 
     // Capture beforeinstallprompt
