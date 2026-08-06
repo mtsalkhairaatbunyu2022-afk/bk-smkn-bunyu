@@ -85,17 +85,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
         </div>
 
-        {/* Judul Besar */}
-        <h1 className="text-3xl sm:text-5xl md:text-6xl font-black tracking-tight text-white mb-4 leading-tight">
+        {/* Judul */}
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-white mb-4 leading-tight">
           BK SMK NEGERI 1 BUNYU
         </h1>
 
-        <p className="text-sm sm:text-base md:text-lg text-slate-300 max-w-2xl mx-auto mb-10 leading-relaxed">
-          Sistem Informasi Bimbingan dan Konseling Terpadu untuk pengelolaan data siswa, absensi, jurnal harian, layanan konseling, dan penilaian harian sekolah secara mandiri & offline-first.
-        </p>
+        <p className="mb-8"></p>
 
         {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full max-w-md mb-12">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full max-w-md">
           {/* Tombol Utama */}
           <button
             onClick={onEnterApp}
@@ -104,44 +102,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <span>MASUK APLIKASI</span>
             <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
           </button>
-
-          {/* Tombol Kedua */}
-          <button
-            onClick={onInstallClick}
-            className={`w-full sm:w-auto px-8 py-4 rounded-xl text-base font-bold bg-white/10 hover:bg-white/20 text-white border border-amber-400/40 backdrop-blur-md shadow-lg transition-all flex items-center justify-center gap-2 active:scale-95 ${
-              canInstallPWA ? 'ring-2 ring-amber-400/50' : ''
-            }`}
-          >
-            <Download className="w-5 h-5 text-amber-400" />
-            <span>INSTALL APP</span>
-          </button>
-        </div>
-
-        {/* Feature Highlights Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 w-full text-left">
-          <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 backdrop-blur-md hover:border-amber-400/30 transition-colors">
-            <Database className="w-5 h-5 text-amber-400 mb-2" />
-            <h3 className="text-xs font-bold text-white mb-0.5">Standalone DB</h3>
-            <p className="text-[11px] text-slate-400 leading-tight">Tersimpan di perangkat lokal IndexedDB & LocalStorage.</p>
-          </div>
-
-          <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 backdrop-blur-md hover:border-amber-400/30 transition-colors">
-            <WifiOff className="w-5 h-5 text-emerald-400 mb-2" />
-            <h3 className="text-xs font-bold text-white mb-0.5">Offline Ready</h3>
-            <p className="text-[11px] text-slate-400 leading-tight">Dapat dijalankan penuh tanpa koneksi internet.</p>
-          </div>
-
-          <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 backdrop-blur-md hover:border-amber-400/30 transition-colors">
-            <Smartphone className="w-5 h-5 text-blue-400 mb-2" />
-            <h3 className="text-xs font-bold text-white mb-0.5">PWA Native</h3>
-            <p className="text-[11px] text-slate-400 leading-tight">Instal di Android, Windows, Mac & Laptop.</p>
-          </div>
-
-          <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 backdrop-blur-md hover:border-amber-400/30 transition-colors">
-            <ShieldCheck className="w-5 h-5 text-indigo-400 mb-2" />
-            <h3 className="text-xs font-bold text-white mb-0.5">Excel & PDF</h3>
-            <p className="text-[11px] text-slate-400 leading-tight">Import multi-sheet Excel & Cetak PDF resmi.</p>
-          </div>
         </div>
       </main>
 

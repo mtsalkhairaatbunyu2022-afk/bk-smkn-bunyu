@@ -75,80 +75,55 @@ function getDB() {
 }
 
 // Initial Sample Data Generator for SMKN 1 Bunyu
-export const initialSiswaData: Siswa[] = [
-  { id: 'sw-1', nomor: '1001', nama: 'Ahmad Fauzi', kelas: 'X TKJ 1', jurusan: 'Teknik Komputer & Jaringan', jenisKelamin: 'L', noHp: '081234567801', namaWali: 'Budi Santoso' },
-  { id: 'sw-2', nomor: '1002', nama: 'Anisa Rahmawati', kelas: 'X TKJ 1', jurusan: 'Teknik Komputer & Jaringan', jenisKelamin: 'P', noHp: '081234567802', namaWali: 'Siti Aminah' },
-  { id: 'sw-3', nomor: '1003', nama: 'Bayu Saputra', kelas: 'X TKR 1', jurusan: 'Teknik Kendaraan Ringan', jenisKelamin: 'L', noHp: '081234567803', namaWali: 'Eko Prasetyo' },
-  { id: 'sw-4', nomor: '1004', nama: 'Citra Dewi', kelas: 'X AKL 1', jurusan: 'Akuntansi & Keuangan Lembaga', jenisKelamin: 'P', noHp: '081234567804', namaWali: 'Dewi Lestari' },
-  { id: 'sw-5', nomor: '1005', nama: 'Dimas Anggara', kelas: 'XI TKJ 1', jurusan: 'Teknik Komputer & Jaringan', jenisKelamin: 'L', noHp: '081234567805', namaWali: 'Agus Setiawan' },
-  { id: 'sw-6', nomor: '1006', nama: 'Eka Putri Subakti', kelas: 'XI AKL 1', jurusan: 'Akuntansi & Keuangan Lembaga', jenisKelamin: 'P', noHp: '081234567806', namaWali: 'Bambang Subakti' },
-  { id: 'sw-7', nomor: '1007', nama: 'Fajar Hidayat', kelas: 'XI TKR 1', jurusan: 'Teknik Kendaraan Ringan', jenisKelamin: 'L', noHp: '081234567807', namaWali: 'Hidayatullah' },
-  { id: 'sw-8', nomor: '1008', nama: 'Gita Gutawa', kelas: 'XII TKJ 1', jurusan: 'Teknik Komputer & Jaringan', jenisKelamin: 'P', noHp: '081234567808', namaWali: 'Erwin Gutawa' },
-  { id: 'sw-9', nomor: '1009', nama: 'Heri Kuswanto', kelas: 'XII TKR 1', jurusan: 'Teknik Kendaraan Ringan', jenisKelamin: 'L', noHp: '081234567809', namaWali: 'Supriadi' },
-  { id: 'sw-10', nomor: '1010', nama: 'Intan Nuraini', kelas: 'XII AKL 1', jurusan: 'Akuntansi & Keuangan Lembaga', jenisKelamin: 'P', noHp: '081234567810', namaWali: 'Nurhayati' }
-];
+export const initialSiswaData: Siswa[] = [];
+export const initialAbsensiData: Absensi[] = [];
+export const initialKonselingData: Konseling[] = [];
 
-export const initialAbsensiData: Absensi[] = [
-  { id: 'ab-1', tanggal: new Date().toISOString().split('T')[0], siswaId: 'sw-1', namaSiswa: 'Ahmad Fauzi', kelas: 'X TKJ 1', status: 'Hadir', catatan: 'Tepat waktu' },
-  { id: 'ab-2', tanggal: new Date().toISOString().split('T')[0], siswaId: 'sw-2', namaSiswa: 'Anisa Rahmawati', kelas: 'X TKJ 1', status: 'Hadir', catatan: 'Tepat waktu' },
-  { id: 'ab-3', tanggal: new Date().toISOString().split('T')[0], siswaId: 'sw-3', namaSiswa: 'Bayu Saputra', kelas: 'X TKR 1', status: 'Sakit', catatan: 'Surat dokter ada' },
-  { id: 'ab-4', tanggal: new Date().toISOString().split('T')[0], siswaId: 'sw-4', namaSiswa: 'Citra Dewi', kelas: 'X AKL 1', status: 'Izin', catatan: 'Acara keluarga' },
-  { id: 'ab-5', tanggal: new Date().toISOString().split('T')[0], siswaId: 'sw-5', namaSiswa: 'Dimas Anggara', kelas: 'XI TKJ 1', status: 'Alpha', catatan: 'Tanpa keterangan' }
-];
+export const initialJurnalData: JurnalHarian[] = [];
 
-export const initialKonselingData: Konseling[] = [
-  {
-    id: 'ks-1',
-    tanggal: new Date().toISOString().split('T')[0],
-    siswaId: 'sw-5',
-    namaSiswa: 'Dimas Anggara',
-    kelas: 'XI TKJ 1',
-    permasalahan: 'Sering terlambat masuk sekolah dan tidak konsentrasi saat jam pelajaran.',
-    tindakLanjut: 'Memberikan motivasi belajar, jadwal disiplin harian, dan koordinasi dengan wali murid.',
-    statusPenyelesaian: 'Proses',
-    guruBK: 'Drs. H. M. Syarif, M.Pd'
-  },
-  {
-    id: 'ks-2',
-    tanggal: new Date(Date.now() - 86400000 * 2).toISOString().split('T')[0],
-    siswaId: 'sw-3',
-    namaSiswa: 'Bayu Saputra',
-    kelas: 'X TKR 1',
-    permasalahan: 'Konsultasi pemilihan minat magang/PRAKERIN dan bimbingan karir industri otomotif.',
-    tindakLanjut: 'Bimbingan kelompok dan pemetaan potensi kerja di bengkel mitra SMKN 1 Bunyu.',
-    statusPenyelesaian: 'Selesai',
-    guruBK: 'Siti Rahmah, S.Pd., Kons.'
-  }
-];
-
-export const initialJurnalData: JurnalHarian[] = [
-  {
-    id: 'jr-1',
-    tanggal: new Date().toISOString().split('T')[0],
-    aktivitas: 'Layanan Bimbingan Klasikal Kelas X TKJ 1',
-    catatan: 'Materi: Strategi Belajar Efektif di SMK & Manajemen Waktu.',
-    guruBK: 'Drs. H. M. Syarif, M.Pd'
-  },
-  {
-    id: 'jr-2',
-    tanggal: new Date(Date.now() - 86400000).toISOString().split('T')[0],
-    aktivitas: 'Konseling Individual & Pemanggilan Wali Siswa',
-    catatan: 'Pertemuan dengan orang tua siswa bermasalah absensi untuk komitmen kedisiplinan.',
-    guruBK: 'Siti Rahmah, S.Pd., Kons.'
-  }
-];
-
-export const initialPenilaianData: PenilaianHarian[] = [
-  { id: 'pn-1', tanggal: new Date().toISOString().split('T')[0], siswaId: 'sw-1', namaSiswa: 'Ahmad Fauzi', kelas: 'X TKJ 1', mataPelajaran: 'Sikap & Kedisiplinan', nilai: 88, keterangan: 'Sangat Baik' },
-  { id: 'pn-2', tanggal: new Date().toISOString().split('T')[0], siswaId: 'sw-2', namaSiswa: 'Anisa Rahmawati', kelas: 'X TKJ 1', mataPelajaran: 'Sikap & Kedisiplinan', nilai: 92, keterangan: 'Amat Baik' },
-  { id: 'pn-3', tanggal: new Date().toISOString().split('T')[0], siswaId: 'sw-3', namaSiswa: 'Bayu Saputra', kelas: 'X TKR 1', mataPelajaran: 'Pengembangan Diri', nilai: 80, keterangan: 'Baik' },
-  { id: 'pn-4', tanggal: new Date().toISOString().split('T')[0], siswaId: 'sw-4', namaSiswa: 'Citra Dewi', kelas: 'X AKL 1', mataPelajaran: 'Keaktifan & Sosial', nilai: 85, keterangan: 'Baik' }
-];
+export const initialPenilaianData: PenilaianHarian[] = [];
 
 // Seed DB if empty
 export async function initDatabase() {
   try {
     const db = await getDB();
+
+    // Clean up residual default sample data across all stores from previous app versions
+    const sampleSiswaIds = ['sw-1', 'sw-2', 'sw-3', 'sw-4', 'sw-5', 'sw-6', 'sw-7', 'sw-8', 'sw-9', 'sw-10'];
+    const sampleAbsensiIds = ['ab-1', 'ab-2', 'ab-3', 'ab-4', 'ab-5'];
+    const sampleKonselingIds = ['ks-1', 'ks-2'];
+    const sampleJurnalIds = ['jr-1', 'jr-2'];
+    const samplePenilaianIds = ['pn-1', 'pn-2', 'pn-3', 'pn-4'];
+
+    const txClean = db.transaction(['siswa', 'absensi', 'konseling', 'jurnal', 'penilaian'], 'readwrite');
+    for (const id of sampleSiswaIds) await txClean.objectStore('siswa').delete(id);
+    for (const id of sampleAbsensiIds) await txClean.objectStore('absensi').delete(id);
+    for (const id of sampleKonselingIds) await txClean.objectStore('konseling').delete(id);
+    for (const id of sampleJurnalIds) await txClean.objectStore('jurnal').delete(id);
+    for (const id of samplePenilaianIds) await txClean.objectStore('penilaian').delete(id);
+    await txClean.done;
+
+    // Also clear residual sample items from LocalStorage fallback
+    const purgeLS = (key: string, sampleIds: string[]) => {
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        try {
+          const arr = JSON.parse(raw);
+          if (Array.isArray(arr)) {
+            const clean = arr.filter((x: { id: string }) => !sampleIds.includes(x.id));
+            localStorage.setItem(key, JSON.stringify(clean));
+          }
+        } catch {
+          // ignore
+        }
+      }
+    };
+    purgeLS('bk_siswa', sampleSiswaIds);
+    purgeLS('bk_absensi', sampleAbsensiIds);
+    purgeLS('bk_konseling', sampleKonselingIds);
+    purgeLS('bk_jurnal', sampleJurnalIds);
+    purgeLS('bk_penilaian', samplePenilaianIds);
+
     const countSiswa = await db.count('siswa');
     if (countSiswa === 0) {
       const tx = db.transaction(['siswa', 'absensi', 'konseling', 'jurnal', 'penilaian'], 'readwrite');
@@ -158,7 +133,6 @@ export async function initDatabase() {
       for (const item of initialJurnalData) await tx.objectStore('jurnal').put(item);
       for (const item of initialPenilaianData) await tx.objectStore('penilaian').put(item);
       await tx.done;
-      console.log('Database initialized with default seed data.');
     }
   } catch (err) {
     console.warn('IndexedDB failed, falling back to LocalStorage:', err);

@@ -293,17 +293,23 @@ export default function App() {
           />
 
           {/* Main Body */}
-          <div className="flex-1 flex max-w-7xl w-full mx-auto pb-16 md:pb-6">
-            {/* Sidebar */}
+          <div className="flex-1 flex flex-col max-w-7xl w-full mx-auto p-4 sm:p-6 pb-16 md:pb-6">
+            {/* Horizontal Navigation & Panel */}
             <Sidebar
               activeTab={activeTab}
               onNavigate={(tab) => setActiveTab(tab)}
               isMobileOpen={isMobileMenuOpen}
               onCloseMobile={() => setIsMobileMenuOpen(false)}
+              onOpenInstall={() => setIsInstallModalOpen(true)}
+              onOpenBackupModal={() => setIsBackupModalOpen(true)}
+              onGoHome={() => setInMainApp(false)}
+              isOnline={isOnline}
+              darkMode={darkMode}
+              onToggleDarkMode={() => setDarkMode(!darkMode)}
             />
 
             {/* Active Content View */}
-            <main className="flex-1 p-4 sm:p-6 overflow-x-hidden">
+            <main className="flex-1 overflow-x-hidden">
               {activeTab === 'dashboard' && (
                 <DashboardView
                   siswa={siswaList}

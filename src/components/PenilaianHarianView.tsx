@@ -174,7 +174,7 @@ export const PenilaianHarianView: React.FC<PenilaianHarianViewProps> = ({
             onChange={(e) => setKelasFilter(e.target.value)}
             className="w-full h-full px-3 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-400/60"
           >
-            <option value="">Semua Kelas</option>
+            <option value="">PILIH SALAH SATU</option>
             {availableClasses.map(k => (
               <option key={k} value={k}>{k}</option>
             ))}
@@ -281,6 +281,7 @@ export const PenilaianHarianView: React.FC<PenilaianHarianViewProps> = ({
                     onChange={(e) => handleSelectSiswa(e.target.value)}
                     className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60"
                   >
+                    <option value="">PILIH SALAH SATU</option>
                     {siswaList.map(s => (
                       <option key={s.id} value={s.id}>{s.nama} ({s.kelas})</option>
                     ))}

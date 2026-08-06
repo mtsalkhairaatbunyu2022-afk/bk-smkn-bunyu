@@ -1,5 +1,20 @@
 import React from 'react';
-import { LayoutDashboard, Users, Calendar, HeartHandshake, BookOpen, Award, X, ChevronRight } from 'lucide-react';
+import {
+  LayoutDashboard,
+  Users,
+  Calendar,
+  HeartHandshake,
+  BookOpen,
+  Award,
+  X,
+  Database,
+  Download,
+  Sun,
+  Moon,
+  Home,
+  Wifi,
+  WifiOff
+} from 'lucide-react';
 import { ActiveTab } from '../types';
 
 interface SidebarProps {
@@ -7,13 +22,25 @@ interface SidebarProps {
   onNavigate: (tab: ActiveTab) => void;
   isMobileOpen: boolean;
   onCloseMobile: () => void;
+  onOpenInstall?: () => void;
+  onOpenBackupModal?: () => void;
+  onGoHome?: () => void;
+  isOnline?: boolean;
+  darkMode?: boolean;
+  onToggleDarkMode?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
   onNavigate,
   isMobileOpen,
-  onCloseMobile
+  onCloseMobile,
+  onOpenInstall,
+  onOpenBackupModal,
+  onGoHome,
+  isOnline = true,
+  darkMode = true,
+  onToggleDarkMode
 }) => {
   const menuItems: { id: ActiveTab; label: string; icon: React.FC<{ className?: string }> }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -26,13 +53,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
-      {/* Desktop Sidebar */}
-      <aside className="hidden md:flex flex-col w-64 shrink-0 bg-[#071533]/80 border-r border-slate-800 p-4 min-h-[calc(100vh-61px)] sticky top-[61px] self-start">
-        <div className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 px-3 mb-3">
+      {/* Horizontal Main Navigation Bar */}
+      <aside className="w-full bg-[#071533]/80 border border-slate-800 p-3.5 sm:p-4 rounded-2xl mb-4 shadow-md">
+        {/* 1. Main Navigation Menu (Horizontal Format) */}
+        <div className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 px-1 mb-2">
           MENU UTAMA
         </div>
 
-        <nav className="space-y-1.5 flex-1">
+        <nav className="flex flex-row overflow-x-auto gap-2 pb-2 scrollbar-none items-center">
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -40,30 +68,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 key={item.id}
                 onClick={() => onNavigate(item.id)}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-bold text-xs transition-all ${
+                className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl font-bold text-xs whitespace-nowrap transition-all shrink-0 ${
                   isActive
-                    ? 'bg-amber-400 text-slate-950 shadow-lg shadow-amber-500/10'
-                    : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                    ? 'bg-amber-400 text-slate-950 shadow-md shadow-amber-500/10'
+                    : 'text-slate-300 hover:bg-slate-800/80 hover:text-white bg-slate-900/60 border border-slate-800/60'
                 }`}
               >
-                <div className="flex items-center gap-3">
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-slate-950' : 'text-amber-400'}`} />
-                  <span>{item.label}</span>
-                </div>
-                {isActive && <ChevronRight className="w-4 h-4 text-slate-950" />}
+                <Icon className={`w-4 h-4 ${isActive ? 'text-slate-950' : 'text-amber-400'}`} />
+                <span>{item.label}</span>
               </button>
             );
           })}
         </nav>
-
-        {/* Offline & App Info Box */}
-        <div className="mt-auto p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 text-center">
-          <div className="w-8 h-8 rounded-lg bg-amber-400/10 border border-amber-400/30 mx-auto flex items-center justify-center mb-2">
-            <img src="/logo-konselor.svg" alt="Konselor Logo" className="w-5 h-5 object-contain" />
-          </div>
-          <p className="text-[11px] font-extrabold text-white">BK SMKN 1 Bunyu</p>
-          <p className="text-[10px] text-amber-300 font-mono mt-0.5">Standalone PWA v1.0</p>
-        </div>
       </aside>
 
       {/* Mobile Backdrop & Drawer */}
@@ -74,21 +90,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
             onClick={onCloseMobile}
           ></div>
 
-          <div className="relative z-10 w-72 max-w-[80vw] bg-[#071533] border-r border-slate-800 p-5 flex flex-col h-full shadow-2xl">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-5">
+          <div className="relative z-10 w-80 max-w-[85vw] bg-[#071533] border-r border-slate-800 p-5 flex flex-col h-full shadow-2xl overflow-y-auto">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
               <div className="flex items-center gap-2.5">
                 <img src="/logo-konselor.svg" alt="Logo BK" className="w-8 h-8 object-contain" />
                 <span className="text-sm font-black text-white">BK SMKN 1 BUNYU</span>
               </div>
               <button
                 onClick={onCloseMobile}
-                className="p-1 rounded-lg text-slate-400 hover:text-white"
+                className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <nav className="space-y-1.5 flex-1">
+            <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 px-1 mb-2">
+              MENU UTAMA
+            </div>
+
+            <nav className="flex flex-col space-y-1.5 mb-4">
               {menuItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
@@ -99,7 +119,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       onNavigate(item.id);
                       onCloseMobile();
                     }}
-                    className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl font-bold text-xs transition-all ${
+                    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-bold text-xs transition-all ${
                       isActive
                         ? 'bg-amber-400 text-slate-950 shadow-md'
                         : 'text-slate-300 hover:bg-slate-800'
@@ -113,29 +133,76 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 );
               })}
             </nav>
+
+            <div className="border-t border-slate-800 my-2"></div>
+
+            <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 px-1 my-2">
+              PANEL AKSI & SISTEM
+            </div>
+
+            <div className="flex flex-col space-y-2 mb-4">
+              {onOpenBackupModal && (
+                <button
+                  onClick={() => {
+                    onOpenBackupModal();
+                    onCloseMobile();
+                  }}
+                  className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-bold text-xs bg-slate-900 text-amber-300 border border-slate-800"
+                >
+                  <div className="flex items-center gap-3">
+                    <Database className="w-4 h-4 text-amber-400" />
+                    <span>Backup DB</span>
+                  </div>
+                </button>
+              )}
+
+              {onOpenInstall && (
+                <button
+                  onClick={() => {
+                    onOpenInstall();
+                    onCloseMobile();
+                  }}
+                  className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-bold text-xs bg-amber-400/10 text-amber-300 border border-amber-400/30"
+                >
+                  <div className="flex items-center gap-3">
+                    <Download className="w-4 h-4 text-amber-400" />
+                    <span>Install App</span>
+                  </div>
+                </button>
+              )}
+
+              {onToggleDarkMode && (
+                <button
+                  onClick={() => {
+                    onToggleDarkMode();
+                  }}
+                  className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-bold text-xs bg-slate-900 text-cyan-300 border border-cyan-500/40"
+                >
+                  <div className="flex items-center gap-3">
+                    {darkMode ? <Sun className="w-4 h-4 text-emerald-400" /> : <Moon className="w-4 h-4 text-sky-400" />}
+                    <span>Mode Tampilan (<span className="text-emerald-400 font-black">{darkMode ? 'Gelap' : 'Terang'}</span>)</span>
+                  </div>
+                </button>
+              )}
+
+              {onGoHome && (
+                <button
+                  onClick={() => {
+                    onGoHome();
+                    onCloseMobile();
+                  }}
+                  className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-bold text-xs bg-slate-900 text-slate-300 border border-slate-800"
+                >
+                  <div className="flex items-center gap-3">
+                    <Home className="w-4 h-4 text-blue-400" />
+                    <span>Halaman Depan</span>
+                  </div>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
-
-      {/* Mobile Bottom Navigation Bar */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#071533]/95 backdrop-blur-lg border-t border-slate-800 px-2 py-1.5 flex items-center justify-around">
-        {menuItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeTab === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => onNavigate(item.id)}
-              className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl text-[10px] font-bold transition-all ${
-                isActive ? 'text-amber-400' : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Icon className={`w-5 h-5 mb-0.5 ${isActive ? 'text-amber-400 scale-110' : 'text-slate-400'}`} />
-              <span className="truncate max-w-[60px]">{item.label}</span>
-            </button>
-          );
-        })}
-      </div>
     </>
   );
 };

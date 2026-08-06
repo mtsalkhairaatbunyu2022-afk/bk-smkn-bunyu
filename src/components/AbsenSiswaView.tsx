@@ -147,6 +147,7 @@ export const AbsenSiswaView: React.FC<AbsenSiswaViewProps> = ({
             onChange={(e) => setSelectedKelas(e.target.value)}
             className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-400/60"
           >
+            <option value="">PILIH SALAH SATU</option>
             {availableClasses.map(k => (
               <option key={k} value={k}>{k}</option>
             ))}

@@ -29,8 +29,8 @@ export const DataSiswaView: React.FC<DataSiswaViewProps> = ({
 
   const [formNomor, setFormNomor] = useState('');
   const [formNama, setFormNama] = useState('');
-  const [formKelas, setFormKelas] = useState('X TKJ 1');
-  const [formJurusan, setFormJurusan] = useState('Teknik Komputer & Jaringan');
+  const [formKelas, setFormKelas] = useState('');
+  const [formJurusan, setFormJurusan] = useState('');
   const [formJenisKelamin, setFormJenisKelamin] = useState<'L' | 'P'>('L');
   const [formNoHp, setFormNoHp] = useState('');
   const [formNamaWali, setFormNamaWali] = useState('');
@@ -52,10 +52,10 @@ export const DataSiswaView: React.FC<DataSiswaViewProps> = ({
 
   const handleOpenAddModal = () => {
     setEditingSiswa(null);
-    setFormNomor(`10${siswaList.length + 1}`);
+    setFormNomor('');
     setFormNama('');
-    setFormKelas('X TKJ 1');
-    setFormJurusan('Teknik Komputer & Jaringan');
+    setFormKelas('');
+    setFormJurusan('');
     setFormJenisKelamin('L');
     setFormNoHp('');
     setFormNamaWali('');
@@ -169,7 +169,7 @@ export const DataSiswaView: React.FC<DataSiswaViewProps> = ({
             onChange={(e) => setKelasFilter(e.target.value)}
             className="w-full px-3 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-400/60"
           >
-            <option value="">Semua Kelas</option>
+            <option value="">PILIH SALAH SATU</option>
             {availableClasses.map(k => (
               <option key={k} value={k}>{k}</option>
             ))}
@@ -183,7 +183,7 @@ export const DataSiswaView: React.FC<DataSiswaViewProps> = ({
             onChange={(e) => setJurusanFilter(e.target.value)}
             className="w-full px-3 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-400/60"
           >
-            <option value="">Semua Jurusan</option>
+            <option value="">PILIH SALAH SATU</option>
             {availableJurusans.map(j => (
               <option key={j} value={j}>{j}</option>
             ))}
@@ -250,7 +250,7 @@ export const DataSiswaView: React.FC<DataSiswaViewProps> = ({
               ) : (
                 <tr>
                   <td colSpan={7} className="text-center py-8 text-slate-500 text-xs">
-                    Tidak ada data siswa ditemukan.
+                    Belum ada data siswa.
                   </td>
                 </tr>
               )}
@@ -317,6 +317,7 @@ export const DataSiswaView: React.FC<DataSiswaViewProps> = ({
                     onChange={(e) => setFormJenisKelamin(e.target.value as 'L' | 'P')}
                     className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60"
                   >
+                    <option value="" disabled hidden>PILIH SALAH SATU</option>
                     <option value="L">Laki-Laki (L)</option>
                     <option value="P">Perempuan (P)</option>
                   </select>

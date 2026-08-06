@@ -160,7 +160,7 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
             onChange={(e) => setStatusFilter(e.target.value)}
             className="w-full px-3 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-400/60"
           >
-            <option value="">Semua Status Penyelesaian</option>
+            <option value="">PILIH SALAH SATU</option>
             <option value="Proses">Proses</option>
             <option value="Selesai">Selesai</option>
             <option value="Rujukan">Rujukan</option>
@@ -280,6 +280,7 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
                     onChange={(e) => handleSelectSiswa(e.target.value)}
                     className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60"
                   >
+                    <option value="">PILIH SALAH SATU</option>
                     {siswaList.map(s => (
                       <option key={s.id} value={s.id}>{s.nama} ({s.kelas})</option>
                     ))}
@@ -343,6 +344,7 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
                     onChange={(e) => setFormStatusPenyelesaian(e.target.value as StatusKonseling)}
                     className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60"
                   >
+                    <option value="" disabled hidden>PILIH SALAH SATU</option>
                     <option value="Proses">Proses</option>
                     <option value="Selesai">Selesai</option>
                     <option value="Pemantauan">Pemantauan</option>
