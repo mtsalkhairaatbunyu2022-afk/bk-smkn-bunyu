@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0B1B47" />
+      <stop offset="100%" stop-color="#071533" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFD700" />
+      <stop offset="50%" stop-color="#F0B90B" />
+      <stop offset="100%" stop-color="#D49A00" />
+    </linearGradient>
+    <linearGradient id="blueCircleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3A82D1" />
+      <stop offset="100%" stop-color="#1E5EA8" />
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="6" flood-color="#000000" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+
+  <!-- Outer background circle with gradient border -->
+  <circle cx="250" cy="250" r="230" fill="url(#blueCircleGrad)" filter="url(#shadow)" />
+  
+  <!-- Outer Gold Ring -->
+  <circle cx="250" cy="250" r="220" fill="none" stroke="url(#goldGrad)" stroke-width="28" />
+
+  <!-- Inner Blue Field -->
+  <circle cx="240" cy="250" r="190" fill="#236EB2" />
+
+  <!-- Golden Monogram Key Phi Logo Elements -->
+  <!-- Upper Golden Circle Loop -->
+  <circle cx="290" cy="150" r="65" fill="none" stroke="url(#goldGrad)" stroke-width="22" />
+
+  <!-- Vertical Golden Stem -->
+  <rect x="278" y="150" width="22" height="275" fill="url(#goldGrad)" />
+
+  <!-- Horizontal Golden Box for "KONSELOR" text at bottom right -->
+  <rect x="280" y="395" width="180" height="52" rx="4" fill="url(#goldGrad)" />
+
+  <!-- KONSELOR text in blue -->
+  <text x="370" y="432" font-family="'Arial Black', 'Helvetica Neue', sans-serif" font-weight="900" font-size="25" fill="#174373" text-anchor="middle" letter-spacing="1">KONSELOR</text>
+
+  <!-- Left Golden Crescent Accent -->
+  <path d="M 230 40 A 210 210 0 0 0 60 250 A 210 210 0 0 0 230 460" fill="none" stroke="url(#goldGrad)" stroke-width="28" stroke-linecap="round" />
+</svg>
