@@ -86,7 +86,23 @@ export function printKonselingPDF(data: Konseling) {
   const splitTindakLanjut = doc.splitTextToSize(data.tindakLanjut, 180);
   doc.text(splitTindakLanjut, 15, nextY1 + 6);
 
-  const nextY2 = nextY1 + 10 + (splitTindakLanjut.length * 5);
+  let nextY2 = nextY1 + 10 + (splitTindakLanjut.length * 5);
+
+  // Optional Foto Dokumentasi
+  if (data.fotoDokumentasi) {
+    try {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(11, 27, 71);
+      doc.text('C. DOKUMENTASI / BUKTI FOTO:', 15, nextY2);
+      
+      const format = data.fotoDokumentasi.includes('png') ? 'PNG' : 'JPEG';
+      doc.addImage(data.fotoDokumentasi, format, 15, nextY2 + 4, 45, 35);
+      nextY2 += 42;
+    } catch (e) {
+      console.warn('Could not add image to PDF:', e);
+    }
+  }
 
   // Tanda Tangan Section
   const signY = Math.max(nextY2 + 15, 210);

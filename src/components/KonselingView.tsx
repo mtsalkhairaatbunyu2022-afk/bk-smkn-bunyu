@@ -1,7 +1,10 @@
-import React, { useState, useMemo } from 'react';
-import { HeartHandshake, Plus, Edit2, Trash2, Printer, Search, X, Check, FileText } from 'lucide-react';
+import React, { useState, useMemo, useRef } from 'react';
+import { HeartHandshake, Plus, Edit2, Trash2, Printer, Search, X, Check, Camera, Image as ImageIcon, Eye, Download, FileText, FileSpreadsheet, Upload } from 'lucide-react';
 import { Siswa, Konseling, StatusKonseling } from '../types';
 import { printKonselingPDF } from '../utils/pdfUtils';
+import { exportKonselingExcel, downloadTemplateExcelSiswa, parseExcelFile } from '../utils/excelUtils';
+import { exportKonselingWord } from '../utils/wordUtils';
+import { saveSiswaBatch } from '../db/indexedDB';
 
 interface KonselingViewProps {
   siswaList: Siswa[];
@@ -9,6 +12,10 @@ interface KonselingViewProps {
   onAddKonseling: (item: Konseling) => void;
   onUpdateKonseling: (item: Konseling) => void;
   onDeleteKonseling: (id: string) => void;
+  onAddSiswaBatch?: (items: Siswa[]) => Promise<void> | void;
+  filterKelas?: string;
+  allowClasses?: string[];
+  viewTitle?: string;
 }
 
 export const KonselingView: React.FC<KonselingViewProps> = ({
@@ -16,14 +23,25 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
   konselingList,
   onAddKonseling,
   onUpdateKonseling,
-  onDeleteKonseling
+  onDeleteKonseling,
+  onAddSiswaBatch,
+  filterKelas,
+  allowClasses,
+  viewTitle
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
+  // Upload Data Siswa State
+  const [uploadedFileName, setUploadedFileName] = useState('');
+  const [pendingImportSiswa, setPendingImportSiswa] = useState<Siswa[]>([]);
+  const [isImportConfirmOpen, setIsImportConfirmOpen] = useState(false);
+  const [isProcessingFile, setIsProcessingFile] = useState(false);
+
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Konseling | null>(null);
+  const [previewPhotoUrl, setPreviewPhotoUrl] = useState<string | null>(null);
 
   const [formTanggal, setFormTanggal] = useState(new Date().toISOString().split('T')[0]);
   const [formSiswaId, setFormSiswaId] = useState('');
@@ -31,21 +49,66 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
   const [formKelas, setFormKelas] = useState('');
   const [formPermasalahan, setFormPermasalahan] = useState('');
   const [formTindakLanjut, setFormTindakLanjut] = useState('');
-  const [formStatusPenyelesaian, setFormStatusPenyelesaian] = useState<StatusKonseling>('Proses');
+  const [formStatusPenyelesaian, setFormStatusPenyelesaian] = useState('');
   const [formGuruBK, setFormGuruBK] = useState('Drs. H. M. Syarif, M.Pd');
+  const [formFotoDokumentasi, setFormFotoDokumentasi] = useState<string>('');
+
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+
+  const availableClassOptions = useMemo(() => {
+    const classSet = new Set<string>();
+    siswaList.forEach(s => {
+      const val = (s.kelas || '').trim();
+      if (val) classSet.add(val);
+    });
+    konselingList.forEach(k => {
+      const val = (k.kelas || '').trim();
+      if (val) classSet.add(val);
+    });
+    return Array.from(classSet).sort();
+  }, [siswaList, konselingList]);
 
   const filteredList = useMemo(() => {
     return konselingList.filter(k => {
-      const matchSearch = k.namaSiswa.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        k.permasalahan.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        k.kelas.toLowerCase().includes(searchTerm.toLowerCase());
+      let matchKelasFilter = true;
+      const kKelas = (k.kelas || '').toLowerCase();
+      if (allowClasses && allowClasses.length > 0) {
+        matchKelasFilter = allowClasses.some(c => kKelas.includes((c || '').toLowerCase()));
+      } else if (filterKelas) {
+        matchKelasFilter = kKelas.includes(filterKelas.toLowerCase());
+      }
+      const search = (searchTerm || '').toLowerCase();
+      const matchSearch = (k.namaSiswa || '').toLowerCase().includes(search) ||
+        (k.permasalahan || '').toLowerCase().includes(search) ||
+        kKelas.includes(search);
       const matchStatus = !statusFilter || k.statusPenyelesaian === statusFilter;
-      return matchSearch && matchStatus;
+      return matchKelasFilter && matchSearch && matchStatus;
     });
-  }, [konselingList, searchTerm, statusFilter]);
+  }, [konselingList, filterKelas, allowClasses, searchTerm, statusFilter]);
+
+  const filteredSiswaList = useMemo(() => {
+    const trimmedForm = (formKelas || '').trim().toLowerCase();
+    if (trimmedForm) {
+      return siswaList.filter(s => (s.kelas || '').trim().toLowerCase() === trimmedForm);
+    }
+    const trimmedFilter = (filterKelas || '').trim().toLowerCase();
+    if (trimmedFilter) {
+      return siswaList.filter(s => (s.kelas || '').trim().toLowerCase() === trimmedFilter);
+    }
+    if (allowClasses && allowClasses.length > 0) {
+      return siswaList.filter(s => allowClasses.some(c => (s.kelas || '').toLowerCase().includes((c || '').toLowerCase())));
+    }
+    return siswaList;
+  }, [siswaList, formKelas, filterKelas, allowClasses]);
 
   const handleSelectSiswa = (siswaId: string) => {
     setFormSiswaId(siswaId);
+    if (!siswaId) {
+      setFormNamaSiswa('');
+      setFormKelas('');
+      return;
+    }
     const s = siswaList.find(x => x.id === siswaId);
     if (s) {
       setFormNamaSiswa(s.nama);
@@ -53,22 +116,89 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
     }
   };
 
+  const handleClassSelectInForm = (selectedK: string) => {
+    setFormKelas(selectedK);
+    if (formSiswaId) {
+      const selectedStudent = siswaList.find(s => s.id === formSiswaId);
+      if (selectedStudent && (selectedStudent.kelas || '').trim().toLowerCase() !== selectedK.trim().toLowerCase()) {
+        setFormSiswaId('');
+        setFormNamaSiswa('');
+      }
+    }
+  };
+
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Harap pilih file gambar (JPG/PNG)');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result) {
+        setFormFotoDokumentasi(event.target.result as string);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // File Upload Handler for Student Data
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsProcessingFile(true);
+      const parsedData = await parseExcelFile(file);
+
+      if (parsedData.siswa && parsedData.siswa.length > 0) {
+        setUploadedFileName(file.name);
+        setPendingImportSiswa(parsedData.siswa);
+        setIsImportConfirmOpen(true);
+      } else {
+        alert('File Excel yang diunggah tidak berisi data siswa yang valid.');
+      }
+    } catch (err) {
+      alert('Gagal membaca data file Excel. Pastikan format tabel sesuai.');
+    } finally {
+      setIsProcessingFile(false);
+      e.target.value = '';
+    }
+  };
+
+  // Confirm Save Uploaded Student Data
+  const handleConfirmSaveImport = async () => {
+    if (pendingImportSiswa.length === 0) return;
+
+    try {
+      if (onAddSiswaBatch) {
+        await onAddSiswaBatch(pendingImportSiswa);
+      } else {
+        await saveSiswaBatch(pendingImportSiswa);
+      }
+      alert(`Berhasil menyimpan ${pendingImportSiswa.length} data siswa ke database!`);
+      setIsImportConfirmOpen(false);
+      setPendingImportSiswa([]);
+      setUploadedFileName('');
+    } catch (error) {
+      alert('Terjadi kesalahan saat menyimpan data siswa.');
+    }
+  };
+
   const handleOpenAddModal = () => {
     setEditingItem(null);
     setFormTanggal(new Date().toISOString().split('T')[0]);
-    if (siswaList.length > 0) {
-      setFormSiswaId(siswaList[0].id);
-      setFormNamaSiswa(siswaList[0].nama);
-      setFormKelas(siswaList[0].kelas);
-    } else {
-      setFormSiswaId('');
-      setFormNamaSiswa('');
-      setFormKelas('');
-    }
+    setFormSiswaId('');
+    setFormNamaSiswa('');
+    setFormKelas(filterKelas || '');
     setFormPermasalahan('');
     setFormTindakLanjut('');
-    setFormStatusPenyelesaian('Proses');
+    setFormStatusPenyelesaian('');
     setFormGuruBK('Drs. H. M. Syarif, M.Pd');
+    setFormFotoDokumentasi('');
     setIsModalOpen(true);
   };
 
@@ -82,6 +212,7 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
     setFormTindakLanjut(item.tindakLanjut);
     setFormStatusPenyelesaian(item.statusPenyelesaian);
     setFormGuruBK(item.guruBK);
+    setFormFotoDokumentasi(item.fotoDokumentasi || '');
     setIsModalOpen(true);
   };
 
@@ -99,7 +230,8 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
         permasalahan: formPermasalahan,
         tindakLanjut: formTindakLanjut,
         statusPenyelesaian: formStatusPenyelesaian,
-        guruBK: formGuruBK
+        guruBK: formGuruBK,
+        fotoDokumentasi: formFotoDokumentasi
       });
     } else {
       onAddKonseling({
@@ -111,7 +243,8 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
         permasalahan: formPermasalahan,
         tindakLanjut: formTindakLanjut,
         statusPenyelesaian: formStatusPenyelesaian,
-        guruBK: formGuruBK
+        guruBK: formGuruBK,
+        fotoDokumentasi: formFotoDokumentasi
       });
     }
 
@@ -123,49 +256,73 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
       {/* Top Header Card */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-lg">
         <div>
-          <h2 className="text-xl font-black text-white flex items-center gap-2.5">
-            <HeartHandshake className="w-6 h-6 text-amber-400" />
-            Layanan Bimbingan Konseling
-          </h2>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="text-xl font-black text-white flex items-center gap-2.5">
+              <HeartHandshake className="w-6 h-6 text-amber-400" />
+              {viewTitle || 'Layanan Bimbingan Konseling'}
+            </h2>
+            {filterKelas && (
+              <span className="px-2.5 py-1 rounded-full text-xs font-black bg-amber-400/20 text-amber-300 border border-amber-400/40">
+                Khusus Kelas {filterKelas}
+              </span>
+            )}
+          </div>
           <p className="text-xs text-slate-400 mt-1">
-            Catatan sesi konseling individual & kelompok siswa SMKN 1 Bunyu.
+            {filterKelas 
+              ? `Catatan sesi konseling khusus kelas ${filterKelas} SMKN 1 Bunyu.` 
+              : 'Catatan sesi konseling individual & kelompok siswa SMKN 1 Bunyu.'}
           </p>
         </div>
 
-        <button
-          onClick={handleOpenAddModal}
-          className="px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-amber-500/10"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Tambah Layanan BK</span>
-        </button>
-      </div>
-
-      {/* Filter and Search */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="relative">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Cari nama siswa atau permasalahan..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400/60"
-          />
-        </div>
-
-        <div>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full px-3 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-400/60"
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          {/* Template Excel Download Button */}
+          <button
+            onClick={downloadTemplateExcelSiswa}
+            className="px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 shadow"
+            title="Unduh contoh format file Excel untuk import data siswa"
           >
-            <option value="">PILIH SALAH SATU</option>
-            <option value="Proses">Proses</option>
-            <option value="Selesai">Selesai</option>
-            <option value="Rujukan">Rujukan</option>
-            <option value="Pemantauan">Pemantauan</option>
-          </select>
+            <FileSpreadsheet className="w-4 h-4 text-amber-400" />
+            <span>Format Excel Siswa</span>
+          </button>
+
+          {/* Import Excel Student Data File Upload */}
+          <label className="px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-2 shadow shadow-emerald-600/20">
+            <Upload className="w-4 h-4 text-white" />
+            <span>{isProcessingFile ? 'Membaca File...' : 'Unggah Data Siswa'}</span>
+            <input
+              type="file"
+              accept=".xlsx, .xls, .csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+              onChange={handleFileUpload}
+              disabled={isProcessingFile}
+              className="hidden"
+            />
+          </label>
+
+          <button
+            onClick={() => exportKonselingExcel(filteredList)}
+            className="px-3.5 py-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-xs font-bold transition-all flex items-center gap-1.5"
+            title="Unduh Data Layanan BK (Excel)"
+          >
+            <Download className="w-4 h-4" />
+            <span>Unduh Excel</span>
+          </button>
+          
+          <button
+            onClick={() => exportKonselingWord(filteredList)}
+            className="px-3.5 py-2.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 text-xs font-bold transition-all flex items-center gap-1.5"
+            title="Unduh Data Layanan BK (Word)"
+          >
+            <FileText className="w-4 h-4 text-blue-400" />
+            <span>Unduh Word</span>
+          </button>
+
+          <button
+            onClick={handleOpenAddModal}
+            className="px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-amber-500/10"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Tambah Layanan BK</span>
+          </button>
         </div>
       </div>
 
@@ -176,11 +333,12 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
             <thead className="bg-slate-950 text-slate-400 font-bold uppercase text-[11px] border-b border-slate-800">
               <tr>
                 <th className="py-3.5 px-4 w-10 text-center">NO</th>
-                <th className="py-3.5 px-4">TANGGAL</th>
-                <th className="py-3.5 px-4">NAMA SISWA / KELAS</th>
-                <th className="py-3.5 px-4">PERMASALAHAN</th>
-                <th className="py-3.5 px-4">TINDAK LANJUT</th>
-                <th className="py-3.5 px-4 text-center">STATUS</th>
+                <th className="py-3.5 px-4">TGL</th>
+                <th className="py-3.5 px-4">KELAS+JURUSAN</th>
+                <th className="py-3.5 px-4">NAMA & PERMASALAHAN SISWA</th>
+                <th className="py-3.5 px-4">TINDAK LANJUT & SOLUSI BK</th>
+                <th className="py-3.5 px-4 text-center">STATUS PENYELESAIAN</th>
+                <th className="py-3.5 px-4 text-center">FOTO</th>
                 <th className="py-3.5 px-4 text-center w-28">AKSI</th>
               </tr>
             </thead>
@@ -189,14 +347,18 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
                 filteredList.map((item, index) => (
                   <tr key={item.id} className="hover:bg-slate-800/40 transition-colors">
                     <td className="py-3 px-4 text-center font-mono text-slate-500">{index + 1}</td>
-                    <td className="py-3 px-4 font-mono text-slate-300">{item.tanggal}</td>
+                    <td className="py-3 px-4 font-mono text-amber-300 whitespace-nowrap">{item.tanggal}</td>
                     <td className="py-3 px-4">
-                      <p className="font-bold text-white">{item.namaSiswa}</p>
-                      <span className="text-[10px] text-amber-300 font-semibold">{item.kelas}</span>
+                      <span className="px-2.5 py-1 rounded-md bg-blue-500/10 text-blue-300 font-semibold border border-blue-500/20 whitespace-nowrap">
+                        {item.kelas}
+                      </span>
                     </td>
-                    <td className="py-3 px-4 max-w-xs text-slate-200">{item.permasalahan}</td>
-                    <td className="py-3 px-4 max-w-xs text-slate-400">{item.tindakLanjut}</td>
-                    <td className="py-3 px-4 text-center">
+                    <td className="py-3 px-4 max-w-xs">
+                      <p className="font-bold text-white text-xs">{item.namaSiswa}</p>
+                      <p className="text-[11px] text-slate-300 mt-0.5 line-clamp-2">{item.permasalahan}</p>
+                    </td>
+                    <td className="py-3 px-4 max-w-xs text-slate-300 line-clamp-2">{item.tindakLanjut}</td>
+                    <td className="py-3 px-4 text-center whitespace-nowrap">
                       <span className={`px-2.5 py-1 rounded-md text-[11px] font-bold ${
                         item.statusPenyelesaian === 'Selesai' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
                         item.statusPenyelesaian === 'Proses' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
@@ -205,6 +367,23 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
                       }`}>
                         {item.statusPenyelesaian}
                       </span>
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      {item.fotoDokumentasi ? (
+                        <button
+                          onClick={() => setPreviewPhotoUrl(item.fotoDokumentasi || null)}
+                          className="relative group inline-block"
+                          title="Lihat Foto Dokumentasi"
+                        >
+                          <img
+                            src={item.fotoDokumentasi}
+                            alt="Bukti Foto"
+                            className="w-10 h-10 object-cover rounded-lg border border-amber-400/40 group-hover:scale-105 transition-transform"
+                          />
+                        </button>
+                      ) : (
+                        <span className="text-slate-600 text-[10px] italic">-</span>
+                      )}
                     </td>
                     <td className="py-3 px-4 text-center">
                       <div className="flex items-center justify-center gap-1.5">
@@ -216,6 +395,7 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
                           <Printer className="w-3.5 h-3.5" />
                         </button>
                         <button
+                          type="button"
                           onClick={() => handleOpenEditModal(item)}
                           className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400"
                           title="Edit"
@@ -223,9 +403,8 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
                         <button
-                          onClick={() => {
-                            if (confirm(`Hapus layanan konseling untuk ${item.namaSiswa}?`)) onDeleteKonseling(item.id);
-                          }}
+                          type="button"
+                          onClick={() => onDeleteKonseling(item.id)}
                           className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-500/20 text-rose-400"
                           title="Hapus"
                         >
@@ -250,136 +429,325 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
       {/* Add/Edit Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
-          <div className="bg-[#0B1B47] border border-slate-700 text-slate-100 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
+          <div className="bg-[#0B1B47] border border-slate-700 text-slate-100 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-700 mb-4">
-              <h3 className="text-sm font-bold text-white">
-                {editingItem ? 'Edit Sesi Konseling' : 'Tambah Layanan Konseling Baru'}
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <HeartHandshake className="w-4 h-4 text-amber-400" />
+                <span>{editingItem ? 'Edit Data Konseling' : 'Entri Data Layanan BK'}</span>
               </h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-white">
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="p-1.5 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 border border-slate-700 transition-colors"
+                title="Tutup (X)"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmitForm} className="space-y-3.5 text-xs">
-              <div className="grid grid-cols-2 gap-3">
+            <form onSubmit={handleSubmitForm} className="space-y-4 text-xs">
+              {/* TGL & KELAS+JURUSAN */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Tanggal Konseling</label>
+                  <label className="block text-amber-300 font-bold mb-1 uppercase tracking-wider text-[11px]">TGL (TANGGAL)</label>
                   <input
                     type="date"
                     required
                     value={formTanggal}
                     onChange={(e) => setFormTanggal(e.target.value)}
-                    className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60"
+                    className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60 font-mono"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Pilih Siswa</label>
+                  <label className="block text-amber-300 font-bold mb-1 uppercase tracking-wider text-[11px]">KELAS+JURUSAN</label>
                   <select
-                    value={formSiswaId}
-                    onChange={(e) => handleSelectSiswa(e.target.value)}
-                    className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60"
+                    required
+                    value={formKelas}
+                    onChange={(e) => handleClassSelectInForm(e.target.value)}
+                    className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60 cursor-pointer"
                   >
-                    <option value="">PILIH SALAH SATU</option>
-                    {siswaList.map(s => (
-                      <option key={s.id} value={s.id}>{s.nama} ({s.kelas})</option>
+                    <option value="">PILIH KELAS</option>
+                    {availableClassOptions.map((k) => (
+                      <option key={k} value={k}>
+                        {k}
+                      </option>
                     ))}
                   </select>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              {/* Optional Student Auto-fill */}
+              {siswaList.length > 0 && (
+                <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 space-y-1.5">
+                  <label className="block text-slate-300 text-[11px] font-bold">
+                    * Pilih Siswa dari Database {formKelas ? `(Kelas ${formKelas})` : filterKelas ? `(Kelas ${filterKelas})` : ''}:
+                  </label>
+
+                  <select
+                    value={formSiswaId}
+                    onChange={(e) => handleSelectSiswa(e.target.value)}
+                    className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:border-amber-400 text-xs cursor-pointer"
+                  >
+                    <option value="">
+                      {filteredSiswaList.length > 0
+                        ? `-- Pilih Nama Siswa (${filteredSiswaList.length} siswa) --`
+                        : `-- Tidak ada siswa pada kelas ${formKelas || filterKelas || ''} --`}
+                    </option>
+                    {filteredSiswaList.map(s => (
+                      <option key={s.id} value={s.id}>{s.nama} - Kelas {s.kelas}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* NAMA SISWA & NAMAPERMASALAHAN SISWA */}
+              <div className="space-y-3">
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Nama Siswa</label>
+                  <label className="block text-amber-300 font-bold mb-1 uppercase tracking-wider text-[11px]">NAMA SISWA</label>
                   <input
                     type="text"
                     required
                     value={formNamaSiswa}
                     onChange={(e) => setFormNamaSiswa(e.target.value)}
-                    className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white"
+                    placeholder="Nama lengkap siswa..."
+                    className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Kelas</label>
-                  <input
-                    type="text"
+                  <label className="block text-amber-300 font-bold mb-1 uppercase tracking-wider text-[11px]">NAMAPERMASALAHAN SISWA</label>
+                  <textarea
                     required
-                    value={formKelas}
-                    onChange={(e) => setFormKelas(e.target.value)}
-                    className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white"
-                  />
+                    rows={3}
+                    value={formPermasalahan}
+                    onChange={(e) => setFormPermasalahan(e.target.value)}
+                    placeholder="Uraian permasalahan siswa..."
+                    className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60"
+                  ></textarea>
                 </div>
               </div>
 
+              {/* TINDAK LANJUT & SOLUSI BK */}
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Permasalahan Siswa</label>
-                <textarea
-                  required
-                  rows={3}
-                  value={formPermasalahan}
-                  onChange={(e) => setFormPermasalahan(e.target.value)}
-                  placeholder="Uraikan keluhan / permasalahan..."
-                  className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60"
-                ></textarea>
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1">Tindak Lanjut & Solusi BK</label>
+                <label className="block text-amber-300 font-bold mb-1 uppercase tracking-wider text-[11px]">TINDAK LANJUT & SOLUSI BK</label>
                 <textarea
                   required
                   rows={3}
                   value={formTindakLanjut}
                   onChange={(e) => setFormTindakLanjut(e.target.value)}
-                  placeholder="Rekomendasi / tindakan..."
+                  placeholder="Catatan tindak lanjut dan rekomendasi solusi BK..."
                   className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60"
                 ></textarea>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Status Penyelesaian</label>
-                  <select
-                    value={formStatusPenyelesaian}
-                    onChange={(e) => setFormStatusPenyelesaian(e.target.value as StatusKonseling)}
-                    className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60"
-                  >
-                    <option value="" disabled hidden>PILIH SALAH SATU</option>
-                    <option value="Proses">Proses</option>
-                    <option value="Selesai">Selesai</option>
-                    <option value="Pemantauan">Pemantauan</option>
-                    <option value="Rujukan">Rujukan / Alih Tangan</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Guru Konselor BK</label>
-                  <input
-                    type="text"
-                    required
-                    value={formGuruBK}
-                    onChange={(e) => setFormGuruBK(e.target.value)}
-                    className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white"
-                  />
-                </div>
+              {/* STATUS PENYELESAIAN */}
+              <div>
+                <label className="block text-amber-300 font-bold mb-1 uppercase tracking-wider text-[11px]">STATUS PENYELESAIAN</label>
+                <input
+                  type="text"
+                  value={formStatusPenyelesaian}
+                  onChange={(e) => setFormStatusPenyelesaian(e.target.value)}
+                  placeholder="Masukkan status (contoh: Proses, Selesai, Pemantauan, dll)..."
+                  className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60 font-semibold"
+                />
               </div>
 
-              <div className="pt-3 flex justify-end gap-2">
+              {/* UNGGAH DOKUMENTASI FOTO (KAMERA / GALERI) */}
+              <div className="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800 space-y-2.5">
+                <label className="block text-amber-300 font-bold uppercase tracking-wider text-[11px]">
+                  UNGGAH DOKUMENTASI / FOTO BUKTI (OPSIONAL)
+                </label>
+                
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Direct Camera Trigger */}
+                  <button
+                    type="button"
+                    onClick={() => cameraInputRef.current?.click()}
+                    className="flex-1 py-2 px-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow"
+                  >
+                    <Camera className="w-4 h-4" />
+                    <span>Kamera HP</span>
+                  </button>
+
+                  {/* Gallery Input Trigger */}
+                  <button
+                    type="button"
+                    onClick={() => galleryInputRef.current?.click()}
+                    className="flex-1 py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow"
+                  >
+                    <ImageIcon className="w-4 h-4 text-emerald-400" />
+                    <span>Galeri HP</span>
+                  </button>
+
+                  {/* Hidden inputs */}
+                  <input
+                    ref={cameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handlePhotoUpload}
+                    className="hidden"
+                  />
+                  <input
+                    ref={galleryInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoUpload}
+                    className="hidden"
+                  />
+                </div>
+
+                {/* Photo Preview if attached */}
+                {formFotoDokumentasi && (
+                  <div className="relative mt-2 p-2 bg-slate-950 rounded-xl border border-slate-800 flex items-center gap-3">
+                    <img
+                      src={formFotoDokumentasi}
+                      alt="Pratinjau Bukti Foto"
+                      className="w-16 h-16 object-cover rounded-lg border border-amber-400/40"
+                    />
+                    <div className="flex-1 text-[11px]">
+                      <p className="font-bold text-emerald-400 flex items-center gap-1">
+                        <Check className="w-3.5 h-3.5" /> Foto Berhasil Diunggah
+                      </p>
+                      <p className="text-slate-400 text-[10px]">Tersimpan bersama catatan layanan BK</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFormFotoDokumentasi('')}
+                      className="p-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 transition-colors"
+                      title="Hapus Foto"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-3 flex items-center justify-between border-t border-slate-800 gap-3">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 font-semibold text-slate-300"
+                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 font-semibold text-slate-300 transition-colors flex items-center gap-1.5"
                 >
-                  Batal
+                  <X className="w-4 h-4 text-slate-400" />
+                  <span>Batal</span>
                 </button>
+                
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-amber-400 text-slate-950 font-extrabold hover:bg-amber-300"
+                  className="px-5 py-2.5 rounded-xl bg-amber-400 text-slate-950 font-black hover:bg-amber-300 transition-all flex items-center gap-2 shadow-lg shadow-amber-500/10"
                 >
-                  Simpan Layanan
+                  <Check className="w-4 h-4 stroke-[3]" />
+                  <span>SIMPAN DATA BK</span>
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Fullscreen Photo Viewing Modal */}
+      {previewPhotoUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-fade-in">
+          <div className="relative max-w-3xl w-full bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-2xl flex flex-col items-center">
+            <button
+              onClick={() => setPreviewPhotoUrl(null)}
+              className="absolute top-3 right-3 p-2 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h4 className="text-sm font-bold text-amber-300 mb-3 flex items-center gap-2">
+              <Camera className="w-4 h-4" /> Foto Dokumentasi Layanan BK
+            </h4>
+            <div className="w-full bg-slate-950 p-2 rounded-xl flex items-center justify-center max-h-[75vh] overflow-auto">
+              <img
+                src={previewPhotoUrl}
+                alt="Foto Dokumentasi Sesi BK"
+                className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal for Uploaded Student Data File */}
+      {isImportConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+          <div className="relative max-w-2xl w-full bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-2xl flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+              <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                <Upload className="w-5 h-5 text-emerald-400" />
+                Konfirmasi Unggah File Data Siswa
+              </h3>
+              <button onClick={() => setIsImportConfirmOpen(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 mb-4 flex items-start gap-3">
+              <FileSpreadsheet className="w-6 h-6 text-emerald-400 shrink-0 mt-0.5" />
+              <div className="text-xs">
+                <p className="font-bold text-emerald-300">File Unggahan: <span className="font-mono text-white">{uploadedFileName}</span></p>
+                <p className="text-slate-300 mt-0.5">
+                  Terdeteksi <strong className="text-emerald-400 font-extrabold">{pendingImportSiswa.length} data siswa</strong> yang siap disimpan ke dalam database.
+                </p>
+              </div>
+            </div>
+
+            {/* Preview List */}
+            <div className="flex-1 overflow-y-auto border border-slate-800 rounded-xl bg-slate-950 mb-4">
+              <table className="w-full text-left text-xs text-slate-300">
+                <thead className="bg-slate-900 text-slate-400 font-bold uppercase text-[10px] sticky top-0 border-b border-slate-800">
+                  <tr>
+                    <th className="py-2.5 px-3">NO</th>
+                    <th className="py-2.5 px-3">NAMA SISWA</th>
+                    <th className="py-2.5 px-3">KELAS</th>
+                    <th className="py-2.5 px-3">JURUSAN</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 font-mono">
+                  {pendingImportSiswa.slice(0, 50).map((s, idx) => (
+                    <tr key={idx} className="hover:bg-slate-800/30">
+                      <td className="py-2 px-3 text-slate-500">{idx + 1}</td>
+                      <td className="py-2 px-3 text-white font-sans font-semibold">{s.nama}</td>
+                      <td className="py-2 px-3 text-blue-300">{s.kelas}</td>
+                      <td className="py-2 px-3 text-slate-400 font-sans">{s.jurusan}</td>
+                    </tr>
+                  ))}
+                  {pendingImportSiswa.length > 50 && (
+                    <tr>
+                      <td colSpan={4} className="py-2 px-3 text-center text-slate-500 italic text-[11px]">
+                        ...dan {pendingImportSiswa.length - 50} data siswa lainnya.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Action Footer */}
+            <div className="flex items-center justify-between pt-2 border-t border-slate-800 gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsImportConfirmOpen(false);
+                  setPendingImportSiswa([]);
+                }}
+                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 font-semibold text-xs text-slate-300 transition-colors"
+              >
+                Batal Unggah
+              </button>
+              
+              <button
+                type="button"
+                onClick={handleConfirmSaveImport}
+                className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/20"
+              >
+                <Check className="w-4 h-4 stroke-[3]" />
+                <span>KONFIRMASI SIMPAN DATA SISWA</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

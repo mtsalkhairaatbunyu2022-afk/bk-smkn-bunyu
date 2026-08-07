@@ -5,6 +5,7 @@ import {
   Calendar,
   HeartHandshake,
   BookOpen,
+  FileText,
   Award,
   X,
   Database,
@@ -44,10 +45,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const menuItems: { id: ActiveTab; label: string; icon: React.FC<{ className?: string }> }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'tatatertib', label: 'Tata Tertib', icon: FileText },
     { id: 'siswa', label: 'Data Siswa', icon: Users },
     { id: 'absensi', label: 'Absen Siswa', icon: Calendar },
     { id: 'konseling', label: 'Bimbingan Konseling', icon: HeartHandshake },
     { id: 'jurnal', label: 'Jurnal Harian', icon: BookOpen },
+    { id: 'konseling_xi_tpmg', label: 'BK XI TPMG', icon: HeartHandshake },
     { id: 'penilaian', label: 'Penilaian Harian', icon: Award },
   ];
 
@@ -60,7 +63,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           MENU UTAMA
         </div>
 
-        <nav className="flex flex-row overflow-x-auto gap-2 pb-2 scrollbar-none items-center">
+        <nav className="flex flex-row overflow-x-auto gap-2 pb-3.5 pt-1 items-center [scrollbar-width:thin] [scrollbar-color:#fbbf24_#020617] [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar-track]:bg-slate-950 [&::-webkit-scrollbar-track]:border [&::-webkit-scrollbar-track]:border-slate-800/80 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-amber-400 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-amber-300 transition-all">
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;

@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { BookOpen, Plus, Edit2, Trash2, Printer, Search, X } from 'lucide-react';
+import { BookOpen, Plus, Edit2, Trash2, Printer, Search, X, Download, FileText } from 'lucide-react';
 import { JurnalHarian } from '../types';
 import { printJurnalPDF } from '../utils/pdfUtils';
+import { exportJurnalExcel } from '../utils/excelUtils';
+import { exportJurnalWord } from '../utils/wordUtils';
 
 interface JurnalHarianViewProps {
   jurnalList: JurnalHarian[];
@@ -25,11 +27,12 @@ export const JurnalHarianView: React.FC<JurnalHarianViewProps> = ({
   const [formCatatan, setFormCatatan] = useState('');
   const [formGuruBK, setFormGuruBK] = useState('Drs. H. M. Syarif, M.Pd');
 
-  const filteredList = jurnalList.filter(j =>
-    j.aktivitas.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    j.catatan.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    j.guruBK.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredList = jurnalList.filter(j => {
+    const search = (searchTerm || '').toLowerCase();
+    return (j.aktivitas || '').toLowerCase().includes(search) ||
+      (j.catatan || '').toLowerCase().includes(search) ||
+      (j.guruBK || '').toLowerCase().includes(search);
+  });
 
   const handleOpenAdd = () => {
     setEditingItem(null);
@@ -87,12 +90,28 @@ export const JurnalHarianView: React.FC<JurnalHarianViewProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => exportJurnalExcel(filteredList)}
+            className="px-3.5 py-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-xs font-bold transition-all flex items-center gap-1.5"
+            title="Unduh Jurnal Harian (Excel)"
+          >
+            <Download className="w-4 h-4" /> Unduh Excel
+          </button>
+          
+          <button
+            onClick={() => exportJurnalWord(filteredList)}
+            className="px-3.5 py-2.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 text-xs font-bold transition-all flex items-center gap-1.5"
+            title="Unduh Jurnal Harian (Word)"
+          >
+            <FileText className="w-4 h-4 text-blue-400" /> Unduh Word
+          </button>
+
           <button
             onClick={() => printJurnalPDF(jurnalList)}
             className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-indigo-500/30 text-xs font-bold transition-all flex items-center gap-2"
           >
-            <Printer className="w-4 h-4" /> Cetak Jurnal PDF
+            <Printer className="w-4 h-4" /> Cetak PDF
           </button>
           <button
             onClick={handleOpenAdd}
@@ -140,15 +159,15 @@ export const JurnalHarianView: React.FC<JurnalHarianViewProps> = ({
                     <td className="py-3 px-4 text-center">
                       <div className="flex items-center justify-center gap-1.5">
                         <button
+                          type="button"
                           onClick={() => handleOpenEdit(item)}
                           className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
                         <button
-                          onClick={() => {
-                            if (confirm(`Hapus catatan jurnal ini?`)) onDeleteJurnal(item.id);
-                          }}
+                          type="button"
+                          onClick={() => onDeleteJurnal(item.id)}
                           className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-500/20 text-rose-400"
                         >
                           <Trash2 className="w-3.5 h-3.5" />

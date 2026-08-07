@@ -1,5 +1,5 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
-import { Siswa, Absensi, Konseling, JurnalHarian, PenilaianHarian, AppDatabase } from '../types';
+import { Siswa, Absensi, Konseling, JurnalHarian, PenilaianHarian, TataTertibDocument, AppDatabase } from '../types';
 
 interface BKSchema extends DBSchema {
   siswa: {
@@ -27,10 +27,14 @@ interface BKSchema extends DBSchema {
     value: PenilaianHarian;
     indexes: { 'by-kelas': string; 'by-mapel': string };
   };
+  tataTertib: {
+    key: string;
+    value: TataTertibDocument;
+  };
 }
 
 const DB_NAME = 'bk_smkn1_bunyu_db';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // Incremented for tataTertib
 
 let dbPromise: Promise<IDBPDatabase<BKSchema>> | null = null;
 
@@ -68,6 +72,10 @@ function getDB() {
           penilaianStore.createIndex('by-kelas', 'kelas');
           penilaianStore.createIndex('by-mapel', 'mataPelajaran');
         }
+        // TataTertib Store
+        if (!db.objectStoreNames.contains('tataTertib')) {
+          db.createObjectStore('tataTertib', { keyPath: 'id' });
+        }
       },
     });
   }
@@ -75,7 +83,16 @@ function getDB() {
 }
 
 // Initial Sample Data Generator for SMKN 1 Bunyu
-export const initialSiswaData: Siswa[] = [];
+export const initialSiswaData: Siswa[] = [
+  { id: 'sw-xi-1', nomor: '001101', nama: 'Andi Saputra', kelas: 'XI TPMG', jurusan: 'TPMG', jenisKelamin: 'L', noHp: '081399887766', namaWali: 'Syamsul' },
+  { id: 'sw-xi-2', nomor: '001102', nama: 'Dewi Lestari', kelas: 'XI TPMG', jurusan: 'TPMG', jenisKelamin: 'P', noHp: '081399887767', namaWali: 'Bambang' },
+  { id: 'sw-xi-3', nomor: '001103', nama: 'Ahmad Rizky Pratama', kelas: 'XI TPMG', jurusan: 'TPMG', jenisKelamin: 'L', noHp: '081234567890', namaWali: 'Budi Pratama' },
+  { id: 'sw-xi-4', nomor: '001104', nama: 'Siti Rahmawati', kelas: 'XI TPMG', jurusan: 'TPMG', jenisKelamin: 'P', noHp: '081234567891', namaWali: 'Hasanuddin' },
+  { id: 'sw-xi-5', nomor: '001105', nama: 'Muhammad Dimas', kelas: 'XI TPMG', jurusan: 'TPMG', jenisKelamin: 'L', noHp: '081234567892', namaWali: 'Supriadi' },
+  { id: 'sw-xii-1', nomor: '001201', nama: 'Budi Santoso', kelas: 'XII TPMG', jurusan: 'TPMG', jenisKelamin: 'L', noHp: '081234567801', namaWali: 'Heri Santoso' },
+  { id: 'sw-xii-2', nomor: '001202', nama: 'Rina Indah', kelas: 'XII TPMG', jurusan: 'TPMG', jenisKelamin: 'P', noHp: '081234567802', namaWali: 'Kurniawan' },
+  { id: 'sw-x-1', nomor: '001001', nama: 'Doni Kurnia', kelas: 'X TKJ 1', jurusan: 'TKJ', jenisKelamin: 'L', noHp: '081234567803', namaWali: 'Eko Kurnia' }
+];
 export const initialAbsensiData: Absensi[] = [];
 export const initialKonselingData: Konseling[] = [];
 
@@ -83,47 +100,13 @@ export const initialJurnalData: JurnalHarian[] = [];
 
 export const initialPenilaianData: PenilaianHarian[] = [];
 
-// Seed DB if empty
+// Seed DB if empty (runs only on first app launch)
 export async function initDatabase() {
+  const isInitialized = localStorage.getItem('bk_db_initialized');
+  if (isInitialized) return;
+
   try {
     const db = await getDB();
-
-    // Clean up residual default sample data across all stores from previous app versions
-    const sampleSiswaIds = ['sw-1', 'sw-2', 'sw-3', 'sw-4', 'sw-5', 'sw-6', 'sw-7', 'sw-8', 'sw-9', 'sw-10'];
-    const sampleAbsensiIds = ['ab-1', 'ab-2', 'ab-3', 'ab-4', 'ab-5'];
-    const sampleKonselingIds = ['ks-1', 'ks-2'];
-    const sampleJurnalIds = ['jr-1', 'jr-2'];
-    const samplePenilaianIds = ['pn-1', 'pn-2', 'pn-3', 'pn-4'];
-
-    const txClean = db.transaction(['siswa', 'absensi', 'konseling', 'jurnal', 'penilaian'], 'readwrite');
-    for (const id of sampleSiswaIds) await txClean.objectStore('siswa').delete(id);
-    for (const id of sampleAbsensiIds) await txClean.objectStore('absensi').delete(id);
-    for (const id of sampleKonselingIds) await txClean.objectStore('konseling').delete(id);
-    for (const id of sampleJurnalIds) await txClean.objectStore('jurnal').delete(id);
-    for (const id of samplePenilaianIds) await txClean.objectStore('penilaian').delete(id);
-    await txClean.done;
-
-    // Also clear residual sample items from LocalStorage fallback
-    const purgeLS = (key: string, sampleIds: string[]) => {
-      const raw = localStorage.getItem(key);
-      if (raw) {
-        try {
-          const arr = JSON.parse(raw);
-          if (Array.isArray(arr)) {
-            const clean = arr.filter((x: { id: string }) => !sampleIds.includes(x.id));
-            localStorage.setItem(key, JSON.stringify(clean));
-          }
-        } catch {
-          // ignore
-        }
-      }
-    };
-    purgeLS('bk_siswa', sampleSiswaIds);
-    purgeLS('bk_absensi', sampleAbsensiIds);
-    purgeLS('bk_konseling', sampleKonselingIds);
-    purgeLS('bk_jurnal', sampleJurnalIds);
-    purgeLS('bk_penilaian', samplePenilaianIds);
-
     const countSiswa = await db.count('siswa');
     if (countSiswa === 0) {
       const tx = db.transaction(['siswa', 'absensi', 'konseling', 'jurnal', 'penilaian'], 'readwrite');
@@ -135,12 +118,14 @@ export async function initDatabase() {
       await tx.done;
     }
   } catch (err) {
-    console.warn('IndexedDB failed, falling back to LocalStorage:', err);
+    console.warn('IndexedDB seed failed, falling back to LocalStorage:', err);
+  } finally {
     if (!localStorage.getItem('bk_siswa')) localStorage.setItem('bk_siswa', JSON.stringify(initialSiswaData));
     if (!localStorage.getItem('bk_absensi')) localStorage.setItem('bk_absensi', JSON.stringify(initialAbsensiData));
     if (!localStorage.getItem('bk_konseling')) localStorage.setItem('bk_konseling', JSON.stringify(initialKonselingData));
     if (!localStorage.getItem('bk_jurnal')) localStorage.setItem('bk_jurnal', JSON.stringify(initialJurnalData));
     if (!localStorage.getItem('bk_penilaian')) localStorage.setItem('bk_penilaian', JSON.stringify(initialPenilaianData));
+    localStorage.setItem('bk_db_initialized', 'true');
   }
 }
 
@@ -148,21 +133,28 @@ export async function initDatabase() {
 export async function getAllSiswa(): Promise<Siswa[]> {
   try {
     const db = await getDB();
-    return await db.getAll('siswa');
+    const res = await db.getAll('siswa');
+    if (res && res.length > 0) return res;
   } catch {
-    return JSON.parse(localStorage.getItem('bk_siswa') || '[]');
+    // fallback
   }
+  return JSON.parse(localStorage.getItem('bk_siswa') || '[]');
 }
 
 export async function saveSiswa(item: Siswa): Promise<void> {
   try {
     const db = await getDB();
     await db.put('siswa', item);
-  } catch {
-    const list = await getAllSiswa();
-    const idx = list.findIndex(x => x.id === item.id);
+  } catch (err) {
+    console.warn('IndexedDB saveSiswa error:', err);
+  }
+  try {
+    const list = JSON.parse(localStorage.getItem('bk_siswa') || '[]');
+    const idx = list.findIndex((x: Siswa) => x.id === item.id);
     if (idx >= 0) list[idx] = item; else list.push(item);
     localStorage.setItem('bk_siswa', JSON.stringify(list));
+  } catch {
+    // ignore
   }
 }
 
@@ -170,10 +162,15 @@ export async function deleteSiswa(id: string): Promise<void> {
   try {
     const db = await getDB();
     await db.delete('siswa', id);
-  } catch {
-    const list = await getAllSiswa();
-    const filtered = list.filter(x => x.id !== id);
+  } catch (err) {
+    console.warn('IndexedDB deleteSiswa error:', err);
+  }
+  try {
+    const list = JSON.parse(localStorage.getItem('bk_siswa') || '[]');
+    const filtered = list.filter((x: Siswa) => x.id !== id);
     localStorage.setItem('bk_siswa', JSON.stringify(filtered));
+  } catch {
+    // ignore
   }
 }
 
@@ -183,13 +180,18 @@ export async function saveSiswaBatch(items: Siswa[]): Promise<void> {
     const tx = db.transaction('siswa', 'readwrite');
     for (const item of items) await tx.store.put(item);
     await tx.done;
-  } catch {
-    const list = await getAllSiswa();
+  } catch (err) {
+    console.warn('IndexedDB saveSiswaBatch error:', err);
+  }
+  try {
+    const list = JSON.parse(localStorage.getItem('bk_siswa') || '[]');
     for (const item of items) {
-      const idx = list.findIndex(x => x.id === item.id);
+      const idx = list.findIndex((x: Siswa) => x.id === item.id);
       if (idx >= 0) list[idx] = item; else list.push(item);
     }
     localStorage.setItem('bk_siswa', JSON.stringify(list));
+  } catch {
+    // ignore
   }
 }
 
@@ -197,10 +199,12 @@ export async function saveSiswaBatch(items: Siswa[]): Promise<void> {
 export async function getAllAbsensi(): Promise<Absensi[]> {
   try {
     const db = await getDB();
-    return await db.getAll('absensi');
+    const res = await db.getAll('absensi');
+    if (res) return res;
   } catch {
-    return JSON.parse(localStorage.getItem('bk_absensi') || '[]');
+    // fallback
   }
+  return JSON.parse(localStorage.getItem('bk_absensi') || '[]');
 }
 
 export async function saveAbsensiBatch(items: Absensi[]): Promise<void> {
@@ -209,13 +213,18 @@ export async function saveAbsensiBatch(items: Absensi[]): Promise<void> {
     const tx = db.transaction('absensi', 'readwrite');
     for (const item of items) await tx.store.put(item);
     await tx.done;
-  } catch {
-    const list = await getAllAbsensi();
+  } catch (err) {
+    console.warn('IndexedDB saveAbsensiBatch error:', err);
+  }
+  try {
+    const list = JSON.parse(localStorage.getItem('bk_absensi') || '[]');
     for (const item of items) {
-      const idx = list.findIndex(x => x.id === item.id);
+      const idx = list.findIndex((x: Absensi) => x.id === item.id);
       if (idx >= 0) list[idx] = item; else list.push(item);
     }
     localStorage.setItem('bk_absensi', JSON.stringify(list));
+  } catch {
+    // ignore
   }
 }
 
@@ -223,9 +232,14 @@ export async function deleteAbsensi(id: string): Promise<void> {
   try {
     const db = await getDB();
     await db.delete('absensi', id);
+  } catch (err) {
+    console.warn('IndexedDB deleteAbsensi error:', err);
+  }
+  try {
+    const list = JSON.parse(localStorage.getItem('bk_absensi') || '[]');
+    localStorage.setItem('bk_absensi', JSON.stringify(list.filter((x: Absensi) => x.id !== id)));
   } catch {
-    const list = await getAllAbsensi();
-    localStorage.setItem('bk_absensi', JSON.stringify(list.filter(x => x.id !== id)));
+    // ignore
   }
 }
 
@@ -233,21 +247,28 @@ export async function deleteAbsensi(id: string): Promise<void> {
 export async function getAllKonseling(): Promise<Konseling[]> {
   try {
     const db = await getDB();
-    return await db.getAll('konseling');
+    const res = await db.getAll('konseling');
+    if (res) return res;
   } catch {
-    return JSON.parse(localStorage.getItem('bk_konseling') || '[]');
+    // fallback
   }
+  return JSON.parse(localStorage.getItem('bk_konseling') || '[]');
 }
 
 export async function saveKonseling(item: Konseling): Promise<void> {
   try {
     const db = await getDB();
     await db.put('konseling', item);
-  } catch {
-    const list = await getAllKonseling();
-    const idx = list.findIndex(x => x.id === item.id);
+  } catch (err) {
+    console.warn('IndexedDB saveKonseling error:', err);
+  }
+  try {
+    const list = JSON.parse(localStorage.getItem('bk_konseling') || '[]');
+    const idx = list.findIndex((x: Konseling) => x.id === item.id);
     if (idx >= 0) list[idx] = item; else list.push(item);
     localStorage.setItem('bk_konseling', JSON.stringify(list));
+  } catch {
+    // ignore
   }
 }
 
@@ -255,9 +276,14 @@ export async function deleteKonseling(id: string): Promise<void> {
   try {
     const db = await getDB();
     await db.delete('konseling', id);
+  } catch (err) {
+    console.warn('IndexedDB deleteKonseling error:', err);
+  }
+  try {
+    const list = JSON.parse(localStorage.getItem('bk_konseling') || '[]');
+    localStorage.setItem('bk_konseling', JSON.stringify(list.filter((x: Konseling) => x.id !== id)));
   } catch {
-    const list = await getAllKonseling();
-    localStorage.setItem('bk_konseling', JSON.stringify(list.filter(x => x.id !== id)));
+    // ignore
   }
 }
 
@@ -265,21 +291,28 @@ export async function deleteKonseling(id: string): Promise<void> {
 export async function getAllJurnal(): Promise<JurnalHarian[]> {
   try {
     const db = await getDB();
-    return await db.getAll('jurnal');
+    const res = await db.getAll('jurnal');
+    if (res) return res;
   } catch {
-    return JSON.parse(localStorage.getItem('bk_jurnal') || '[]');
+    // fallback
   }
+  return JSON.parse(localStorage.getItem('bk_jurnal') || '[]');
 }
 
 export async function saveJurnal(item: JurnalHarian): Promise<void> {
   try {
     const db = await getDB();
     await db.put('jurnal', item);
-  } catch {
-    const list = await getAllJurnal();
-    const idx = list.findIndex(x => x.id === item.id);
+  } catch (err) {
+    console.warn('IndexedDB saveJurnal error:', err);
+  }
+  try {
+    const list = JSON.parse(localStorage.getItem('bk_jurnal') || '[]');
+    const idx = list.findIndex((x: JurnalHarian) => x.id === item.id);
     if (idx >= 0) list[idx] = item; else list.push(item);
     localStorage.setItem('bk_jurnal', JSON.stringify(list));
+  } catch {
+    // ignore
   }
 }
 
@@ -287,9 +320,14 @@ export async function deleteJurnal(id: string): Promise<void> {
   try {
     const db = await getDB();
     await db.delete('jurnal', id);
+  } catch (err) {
+    console.warn('IndexedDB deleteJurnal error:', err);
+  }
+  try {
+    const list = JSON.parse(localStorage.getItem('bk_jurnal') || '[]');
+    localStorage.setItem('bk_jurnal', JSON.stringify(list.filter((x: JurnalHarian) => x.id !== id)));
   } catch {
-    const list = await getAllJurnal();
-    localStorage.setItem('bk_jurnal', JSON.stringify(list.filter(x => x.id !== id)));
+    // ignore
   }
 }
 
@@ -297,21 +335,28 @@ export async function deleteJurnal(id: string): Promise<void> {
 export async function getAllPenilaian(): Promise<PenilaianHarian[]> {
   try {
     const db = await getDB();
-    return await db.getAll('penilaian');
+    const res = await db.getAll('penilaian');
+    if (res) return res;
   } catch {
-    return JSON.parse(localStorage.getItem('bk_penilaian') || '[]');
+    // fallback
   }
+  return JSON.parse(localStorage.getItem('bk_penilaian') || '[]');
 }
 
 export async function savePenilaian(item: PenilaianHarian): Promise<void> {
   try {
     const db = await getDB();
     await db.put('penilaian', item);
-  } catch {
-    const list = await getAllPenilaian();
-    const idx = list.findIndex(x => x.id === item.id);
+  } catch (err) {
+    console.warn('IndexedDB savePenilaian error:', err);
+  }
+  try {
+    const list = JSON.parse(localStorage.getItem('bk_penilaian') || '[]');
+    const idx = list.findIndex((x: PenilaianHarian) => x.id === item.id);
     if (idx >= 0) list[idx] = item; else list.push(item);
     localStorage.setItem('bk_penilaian', JSON.stringify(list));
+  } catch {
+    // ignore
   }
 }
 
@@ -319,9 +364,56 @@ export async function deletePenilaian(id: string): Promise<void> {
   try {
     const db = await getDB();
     await db.delete('penilaian', id);
+  } catch (err) {
+    console.warn('IndexedDB deletePenilaian error:', err);
+  }
+  try {
+    const list = JSON.parse(localStorage.getItem('bk_penilaian') || '[]');
+    localStorage.setItem('bk_penilaian', JSON.stringify(list.filter((x: PenilaianHarian) => x.id !== id)));
   } catch {
-    const list = await getAllPenilaian();
-    localStorage.setItem('bk_penilaian', JSON.stringify(list.filter(x => x.id !== id)));
+    // ignore
+  }
+}
+
+// Tata Tertib Document
+export async function getAllTataTertib(): Promise<TataTertibDocument[]> {
+  try {
+    const db = await getDB();
+    return await db.getAll('tataTertib');
+  } catch {
+    return JSON.parse(localStorage.getItem('bk_tata_tertib') || '[]');
+  }
+}
+
+export async function saveTataTertib(item: TataTertibDocument): Promise<void> {
+  try {
+    const db = await getDB();
+    await db.put('tataTertib', item);
+  } catch {
+    const list = await getAllTataTertib();
+    const idx = list.findIndex(x => x.id === item.id);
+    if (idx >= 0) list[idx] = item; else list.push(item);
+    localStorage.setItem('bk_tata_tertib', JSON.stringify(list));
+  }
+}
+
+export async function deleteTataTertib(id: string): Promise<void> {
+  try {
+    const db = await getDB();
+    await db.delete('tataTertib', id);
+  } catch (err) {
+    console.warn('IndexedDB delete error:', err);
+  }
+  try {
+    const raw = localStorage.getItem('bk_tata_tertib');
+    if (raw) {
+      const list = JSON.parse(raw);
+      if (Array.isArray(list)) {
+        localStorage.setItem('bk_tata_tertib', JSON.stringify(list.filter((x: { id: string }) => x.id !== id)));
+      }
+    }
+  } catch {
+    // ignore
   }
 }
 
@@ -332,6 +424,7 @@ export async function exportDatabaseJSON(): Promise<AppDatabase> {
   const konseling = await getAllKonseling();
   const jurnal = await getAllJurnal();
   const penilaian = await getAllPenilaian();
+  const tataTertib = await getAllTataTertib();
 
   return {
     version: '1.0',
@@ -341,6 +434,7 @@ export async function exportDatabaseJSON(): Promise<AppDatabase> {
     konseling,
     jurnal,
     penilaian,
+    tataTertib,
   };
 }
 
@@ -356,6 +450,9 @@ export async function importDatabaseJSON(data: Partial<AppDatabase>): Promise<bo
     }
     if (data.penilaian && Array.isArray(data.penilaian)) {
       for (const p of data.penilaian) await savePenilaian(p);
+    }
+    if (data.tataTertib && Array.isArray(data.tataTertib)) {
+      for (const t of data.tataTertib) await saveTataTertib(t);
     }
     return true;
   } catch (err) {

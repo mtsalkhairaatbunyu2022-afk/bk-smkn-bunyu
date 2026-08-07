@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { Award, Plus, Edit2, Trash2, Download, Search, X } from 'lucide-react';
+import { Award, Plus, Edit2, Trash2, Download, Search, X, FileText } from 'lucide-react';
 import { Siswa, PenilaianHarian } from '../types';
+import { exportPenilaianExcel } from '../utils/excelUtils';
+import { exportPenilaianWord } from '../utils/wordUtils';
 
 interface PenilaianHarianViewProps {
   siswaList: Siswa[];
@@ -33,12 +35,21 @@ export const PenilaianHarianView: React.FC<PenilaianHarianViewProps> = ({
   const [formNilai, setFormNilai] = useState<number>(85);
   const [formKeterangan, setFormKeterangan] = useState('Baik');
 
-  const availableClasses = useMemo(() => Array.from(new Set(siswaList.map(s => s.kelas))).sort(), [siswaList]);
+  const availableClasses = useMemo(() => Array.from(new Set(siswaList.map(s => (s.kelas || '').trim()).filter(Boolean))).sort(), [siswaList]);
+
+  const modalFilteredSiswa = useMemo(() => {
+    const activeK = (formKelas || kelasFilter || '').trim().toLowerCase();
+    if (activeK) {
+      return siswaList.filter(s => (s.kelas || '').trim().toLowerCase() === activeK);
+    }
+    return siswaList;
+  }, [siswaList, formKelas, kelasFilter]);
 
   const filteredList = useMemo(() => {
     return penilaianList.filter(p => {
-      const matchSearch = p.namaSiswa.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.mataPelajaran.toLowerCase().includes(searchTerm.toLowerCase());
+      const search = (searchTerm || '').toLowerCase();
+      const matchSearch = (p.namaSiswa || '').toLowerCase().includes(search) ||
+        (p.mataPelajaran || '').toLowerCase().includes(search);
       const matchKelas = !kelasFilter || p.kelas === kelasFilter;
       return matchSearch && matchKelas;
     });
@@ -63,10 +74,15 @@ export const PenilaianHarianView: React.FC<PenilaianHarianViewProps> = ({
   const handleOpenAdd = () => {
     setEditingItem(null);
     setFormTanggal(new Date().toISOString().split('T')[0]);
-    if (siswaList.length > 0) {
-      setFormSiswaId(siswaList[0].id);
-      setFormNamaSiswa(siswaList[0].nama);
-      setFormKelas(siswaList[0].kelas);
+    const initK = kelasFilter || (availableClasses.length > 0 ? availableClasses[0] : '');
+    setFormKelas(initK);
+    const initialList = initK ? siswaList.filter(s => (s.kelas || '').trim().toLowerCase() === initK.trim().toLowerCase()) : siswaList;
+    if (initialList.length > 0) {
+      setFormSiswaId(initialList[0].id);
+      setFormNamaSiswa(initialList[0].nama);
+    } else {
+      setFormSiswaId('');
+      setFormNamaSiswa('');
     }
     setFormMataPelajaran('Sikap & Kedisiplinan');
     setFormNilai(85);
@@ -130,13 +146,23 @@ export const PenilaianHarianView: React.FC<PenilaianHarianViewProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={onExportExcel}
-            className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-purple-300 border border-purple-500/30 text-xs font-bold transition-all flex items-center gap-2"
+            onClick={() => exportPenilaianExcel(filteredList)}
+            className="px-3.5 py-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-xs font-bold transition-all flex items-center gap-1.5"
+            title="Unduh Data Penilaian (Excel)"
           >
-            <Download className="w-4 h-4" /> Export Excel
+            <Download className="w-4 h-4" /> Unduh Excel
           </button>
+          
+          <button
+            onClick={() => exportPenilaianWord(filteredList)}
+            className="px-3.5 py-2.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 text-xs font-bold transition-all flex items-center gap-1.5"
+            title="Unduh Data Penilaian (Word)"
+          >
+            <FileText className="w-4 h-4 text-blue-400" /> Unduh Word
+          </button>
+
           <button
             onClick={handleOpenAdd}
             className="px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold text-xs transition-all flex items-center gap-2 shadow-lg shadow-amber-500/10"
@@ -220,15 +246,15 @@ export const PenilaianHarianView: React.FC<PenilaianHarianViewProps> = ({
                     <td className="py-3 px-4 text-center">
                       <div className="flex items-center justify-center gap-1.5">
                         <button
+                          type="button"
                           onClick={() => handleOpenEdit(item)}
                           className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
                         <button
-                          onClick={() => {
-                            if (confirm(`Hapus data nilai ini?`)) onDeletePenilaian(item.id);
-                          }}
+                          type="button"
+                          onClick={() => onDeletePenilaian(item.id)}
                           className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-500/20 text-rose-400"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -262,7 +288,7 @@ export const PenilaianHarianView: React.FC<PenilaianHarianViewProps> = ({
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-3.5 text-xs">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-300 font-semibold mb-1">Tanggal</label>
                   <input
@@ -275,18 +301,49 @@ export const PenilaianHarianView: React.FC<PenilaianHarianViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Pilih Siswa</label>
+                  <label className="block text-slate-300 font-semibold mb-1">Kelas & Jurusan</label>
                   <select
-                    value={formSiswaId}
-                    onChange={(e) => handleSelectSiswa(e.target.value)}
-                    className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60"
+                    value={formKelas}
+                    onChange={(e) => {
+                      const newK = e.target.value;
+                      setFormKelas(newK);
+                      const matching = newK ? siswaList.filter(s => (s.kelas || '').trim().toLowerCase() === newK.trim().toLowerCase()) : siswaList;
+                      if (matching.length > 0) {
+                        setFormSiswaId(matching[0].id);
+                        setFormNamaSiswa(matching[0].nama);
+                      } else {
+                        setFormSiswaId('');
+                        setFormNamaSiswa('');
+                      }
+                    }}
+                    className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60 cursor-pointer"
                   >
-                    <option value="">PILIH SALAH SATU</option>
-                    {siswaList.map(s => (
-                      <option key={s.id} value={s.id}>{s.nama} ({s.kelas})</option>
+                    <option value="">PILIH KELAS</option>
+                    {availableClasses.map((k) => (
+                      <option key={k} value={k}>
+                        {k}
+                      </option>
                     ))}
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">
+                  Pilih Siswa {formKelas ? `(Kelas ${formKelas})` : ''}
+                </label>
+                <select
+                  value={formSiswaId}
+                  onChange={(e) => handleSelectSiswa(e.target.value)}
+                  className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60 cursor-pointer"
+                >
+                  <option value="">
+                    {modalFilteredSiswa.length > 0 ? '-- Pilih Siswa --' : '-- Tidak ada siswa pada kelas ini --'}
+                  </option>
+                  {modalFilteredSiswa.map(s => (
+                    <option key={s.id} value={s.id}>{s.nama} ({s.kelas})</option>
+                  ))}
+                </select>
               </div>
 
               <div>

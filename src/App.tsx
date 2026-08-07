@@ -12,12 +12,15 @@ import { PenilaianHarianView } from './components/PenilaianHarianView';
 import { InstallModal } from './components/InstallModal';
 import { BackupRestoreModal } from './components/BackupRestoreModal';
 
+import { TataTertibView } from './components/TataTertibView';
+
 import {
   Siswa,
   Absensi,
   Konseling,
   JurnalHarian,
   PenilaianHarian,
+  TataTertibDocument,
   ActiveTab
 } from './types';
 
@@ -39,6 +42,9 @@ import {
   getAllPenilaian,
   savePenilaian,
   deletePenilaian,
+  getAllTataTertib,
+  saveTataTertib,
+  deleteTataTertib,
   exportDatabaseJSON
 } from './db/indexedDB';
 
@@ -72,6 +78,7 @@ export default function App() {
   const [konselingList, setKonselingList] = useState<Konseling[]>([]);
   const [jurnalList, setJurnalList] = useState<JurnalHarian[]>([]);
   const [penilaianList, setPenilaianList] = useState<PenilaianHarian[]>([]);
+  const [tataTertibList, setTataTertibList] = useState<TataTertibDocument[]>([]);
 
   // PWA Register & Install Prompt Handler
   useEffect(() => {
@@ -116,23 +123,28 @@ export default function App() {
 
   // Fetch Database Data
   const loadAllData = useCallback(async () => {
-    await initDatabase();
-    const [sw, ab, ks, jr, pn] = await Promise.all([
+    const [sw, ab, ks, jr, pn, tt] = await Promise.all([
       getAllSiswa(),
       getAllAbsensi(),
       getAllKonseling(),
       getAllJurnal(),
-      getAllPenilaian()
+      getAllPenilaian(),
+      getAllTataTertib()
     ]);
     setSiswaList(sw);
     setAbsensiList(ab);
     setKonselingList(ks);
     setJurnalList(jr);
     setPenilaianList(pn);
+    setTataTertibList(tt);
   }, []);
 
   useEffect(() => {
-    loadAllData();
+    async function init() {
+      await initDatabase();
+      await loadAllData();
+    }
+    init();
   }, [loadAllData]);
 
   // Dark Mode Class Handler
@@ -187,18 +199,39 @@ export default function App() {
     });
   };
 
+  // Tata Tertib Handlers
+  const handleAddTataTertib = async (item: TataTertibDocument) => {
+    setTataTertibList(prev => [item, ...prev]);
+    await saveTataTertib(item);
+    await loadAllData();
+  };
+
+  const handleDeleteTataTertib = async (id: string) => {
+    setTataTertibList(prev => prev.filter(x => x.id !== id));
+    await deleteTataTertib(id);
+    await loadAllData();
+  };
+
   // Siswa Handlers
   const handleAddSiswa = async (item: Siswa) => {
+    setSiswaList(prev => [...prev, item]);
     await saveSiswa(item);
     await loadAllData();
   };
 
+  const handleSaveSiswaBatch = async (items: Siswa[]) => {
+    await saveSiswaBatch(items);
+    await loadAllData();
+  };
+
   const handleUpdateSiswa = async (item: Siswa) => {
+    setSiswaList(prev => prev.map(x => x.id === item.id ? item : x));
     await saveSiswa(item);
     await loadAllData();
   };
 
   const handleDeleteSiswa = async (id: string) => {
+    setSiswaList(prev => prev.filter(x => x.id !== id));
     await deleteSiswa(id);
     await loadAllData();
   };
@@ -210,54 +243,64 @@ export default function App() {
   };
 
   const handleDeleteAbsensi = async (id: string) => {
+    setAbsensiList(prev => prev.filter(x => x.id !== id));
     await deleteAbsensi(id);
     await loadAllData();
   };
 
   // Konseling Handlers
   const handleAddKonseling = async (item: Konseling) => {
+    setKonselingList(prev => [item, ...prev]);
     await saveKonseling(item);
     await loadAllData();
   };
 
   const handleUpdateKonseling = async (item: Konseling) => {
+    setKonselingList(prev => prev.map(x => x.id === item.id ? item : x));
     await saveKonseling(item);
     await loadAllData();
   };
 
   const handleDeleteKonseling = async (id: string) => {
+    setKonselingList(prev => prev.filter(x => x.id !== id));
     await deleteKonseling(id);
     await loadAllData();
   };
 
   // Jurnal Handlers
   const handleAddJurnal = async (item: JurnalHarian) => {
+    setJurnalList(prev => [item, ...prev]);
     await saveJurnal(item);
     await loadAllData();
   };
 
   const handleUpdateJurnal = async (item: JurnalHarian) => {
+    setJurnalList(prev => prev.map(x => x.id === item.id ? item : x));
     await saveJurnal(item);
     await loadAllData();
   };
 
   const handleDeleteJurnal = async (id: string) => {
+    setJurnalList(prev => prev.filter(x => x.id !== id));
     await deleteJurnal(id);
     await loadAllData();
   };
 
   // Penilaian Handlers
   const handleAddPenilaian = async (item: PenilaianHarian) => {
+    setPenilaianList(prev => [item, ...prev]);
     await savePenilaian(item);
     await loadAllData();
   };
 
   const handleUpdatePenilaian = async (item: PenilaianHarian) => {
+    setPenilaianList(prev => prev.map(x => x.id === item.id ? item : x));
     await savePenilaian(item);
     await loadAllData();
   };
 
   const handleDeletePenilaian = async (id: string) => {
+    setPenilaianList(prev => prev.filter(x => x.id !== id));
     await deletePenilaian(id);
     await loadAllData();
   };
@@ -321,10 +364,19 @@ export default function App() {
                 />
               )}
 
+              {activeTab === 'tatatertib' && (
+                <TataTertibView
+                  tataTertibList={tataTertibList}
+                  onAddTataTertib={handleAddTataTertib}
+                  onDeleteTataTertib={handleDeleteTataTertib}
+                />
+              )}
+
               {activeTab === 'siswa' && (
                 <DataSiswaView
                   siswaList={siswaList}
                   onAddSiswa={handleAddSiswa}
+                  onAddSiswaBatch={handleSaveSiswaBatch}
                   onUpdateSiswa={handleUpdateSiswa}
                   onDeleteSiswa={handleDeleteSiswa}
                   onImportExcel={handleImportExcelFile}
@@ -349,6 +401,7 @@ export default function App() {
                   onAddKonseling={handleAddKonseling}
                   onUpdateKonseling={handleUpdateKonseling}
                   onDeleteKonseling={handleDeleteKonseling}
+                  onAddSiswaBatch={handleSaveSiswaBatch}
                 />
               )}
 
@@ -358,6 +411,20 @@ export default function App() {
                   onAddJurnal={handleAddJurnal}
                   onUpdateJurnal={handleUpdateJurnal}
                   onDeleteJurnal={handleDeleteJurnal}
+                />
+              )}
+
+              {activeTab === 'konseling_xi_tpmg' && (
+                <KonselingView
+                  siswaList={siswaList}
+                  konselingList={konselingList}
+                  onAddKonseling={handleAddKonseling}
+                  onUpdateKonseling={handleUpdateKonseling}
+                  onDeleteKonseling={handleDeleteKonseling}
+                  onAddSiswaBatch={handleSaveSiswaBatch}
+                  filterKelas="XI TPMG"
+                  allowClasses={['XI TPMG']}
+                  viewTitle="Bimbingan Konseling XI TPMG"
                 />
               )}
 

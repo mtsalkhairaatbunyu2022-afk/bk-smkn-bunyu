@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { Calendar, CheckCircle2, AlertCircle, Clock, XCircle, Download, Save, Filter, Trash2 } from 'lucide-react';
+import { Calendar, CheckCircle2, AlertCircle, Clock, XCircle, Download, Save, Filter, Trash2, Edit2, FileText, Search, X } from 'lucide-react';
 import { Siswa, Absensi, StatusAbsensi } from '../types';
+import { exportAbsensiWord } from '../utils/wordUtils';
+import { exportAbsensiExcel } from '../utils/excelUtils';
 
 interface AbsenSiswaViewProps {
   siswaList: Siswa[];
@@ -18,15 +20,34 @@ export const AbsenSiswaView: React.FC<AbsenSiswaViewProps> = ({
   onExportExcel
 }) => {
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [selectedKelas, setSelectedKelas] = useState<string>('X TKJ 1');
-  const [activeViewMode, setActiveViewMode] = useState<'input' | 'rekap-harian' | 'rekap-bulanan'>('input');
+  const [selectedKelas, setSelectedKelas] = useState<string>('XI TPMG');
+  const [activeViewMode, setActiveViewMode] = useState<'input' | 'rekap-harian'>('input');
+
+  // Filter & Search states for Rekap Harian
+  const [rekapSearchTerm, setRekapSearchTerm] = useState('');
+  const [showAllDates, setShowAllDates] = useState(false);
+
+  // Edit Modal State for Absensi
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<Absensi | null>(null);
+  const [editTanggal, setEditTanggal] = useState('');
+  const [editNamaSiswa, setEditNamaSiswa] = useState('');
+  const [editKelas, setEditKelas] = useState('');
+  const [editStatus, setEditStatus] = useState<StatusAbsensi>('Hadir');
+  const [editCatatan, setEditCatatan] = useState('');
 
   // Available classes
-  const availableClasses = useMemo(() => Array.from(new Set(siswaList.map(s => s.kelas))).sort(), [siswaList]);
+  const availableClasses = useMemo(() => Array.from(new Set(siswaList.map(s => (s.kelas || '').trim()).filter(Boolean))).sort(), [siswaList]);
+
+  React.useEffect(() => {
+    if (availableClasses.length > 0 && (!selectedKelas || !availableClasses.includes(selectedKelas))) {
+      setSelectedKelas(availableClasses[0]);
+    }
+  }, [availableClasses, selectedKelas]);
 
   // Students in selected class
   const classStudents = useMemo(() => {
-    return siswaList.filter(s => s.kelas === selectedKelas);
+    return siswaList.filter(s => (s.kelas || '').trim() === (selectedKelas || '').trim());
   }, [siswaList, selectedKelas]);
 
   // Local Attendance State for Batch Input
@@ -77,6 +98,36 @@ export const AbsenSiswaView: React.FC<AbsenSiswaViewProps> = ({
     alert(`Absensi kelas ${selectedKelas} tanggal ${selectedDate} berhasil disimpan!`);
   };
 
+  // Open Edit Modal for Single Absensi Entry
+  const handleOpenEdit = (item: Absensi) => {
+    setEditingItem(item);
+    setEditTanggal(item.tanggal);
+    setEditNamaSiswa(item.namaSiswa);
+    setEditKelas(item.kelas);
+    setEditStatus(item.status);
+    setEditCatatan(item.catatan || '');
+    setIsEditModalOpen(true);
+  };
+
+  // Submit Edit Absensi
+  const handleSaveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingItem) return;
+
+    const updatedItem: Absensi = {
+      ...editingItem,
+      tanggal: editTanggal,
+      namaSiswa: editNamaSiswa,
+      kelas: editKelas,
+      status: editStatus,
+      catatan: editCatatan
+    };
+
+    onSaveAbsensiBatch([updatedItem]);
+    setIsEditModalOpen(false);
+    alert(`Data absensi ${editNamaSiswa} berhasil diperbarui!`);
+  };
+
   // Stats for current class & date
   const stats = useMemo(() => {
     const vals = Object.values(currentAttendance) as { status: StatusAbsensi; catatan: string }[];
@@ -84,9 +135,22 @@ export const AbsenSiswaView: React.FC<AbsenSiswaViewProps> = ({
       hadir: vals.filter(v => v?.status === 'Hadir').length,
       sakit: vals.filter(v => v?.status === 'Sakit').length,
       izin: vals.filter(v => v?.status === 'Izin').length,
+      terlambat: vals.filter(v => v?.status === 'Terlambat').length,
       alpha: vals.filter(v => v?.status === 'Alpha').length,
     };
   }, [currentAttendance]);
+
+  // Filtered Rekap Absensi List
+  const filteredRekapList = useMemo(() => {
+    return absensiList.filter(a => {
+      const matchDate = showAllDates || a.tanggal === selectedDate;
+      const matchSearch = a.namaSiswa.toLowerCase().includes(rekapSearchTerm.toLowerCase()) ||
+        a.kelas.toLowerCase().includes(rekapSearchTerm.toLowerCase()) ||
+        a.status.toLowerCase().includes(rekapSearchTerm.toLowerCase()) ||
+        (a.catatan || '').toLowerCase().includes(rekapSearchTerm.toLowerCase());
+      return matchDate && matchSearch;
+    });
+  }, [absensiList, selectedDate, showAllDates, rekapSearchTerm]);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -120,10 +184,18 @@ export const AbsenSiswaView: React.FC<AbsenSiswaViewProps> = ({
             Rekap Harian
           </button>
           <button
-            onClick={onExportExcel}
+            onClick={() => exportAbsensiExcel(absensiList, siswaList)}
             className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 text-xs font-bold transition-all flex items-center gap-1.5"
+            title="Unduh Rekap Absensi (Excel)"
           >
-            <Download className="w-4 h-4" /> Export Excel
+            <Download className="w-4 h-4" /> Unduh Excel
+          </button>
+          <button
+            onClick={() => exportAbsensiWord(absensiList, selectedKelas, selectedDate, siswaList)}
+            className="px-3.5 py-2 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 text-xs font-bold transition-all flex items-center gap-1.5"
+            title="Unduh Rekap Absensi (Word)"
+          >
+            <FileText className="w-4 h-4 text-blue-400" /> Unduh Word
           </button>
         </div>
       </div>
@@ -167,6 +239,10 @@ export const AbsenSiswaView: React.FC<AbsenSiswaViewProps> = ({
           <div>
             <span className="text-[10px] text-amber-400 font-bold block">IZIN</span>
             <span className="text-base font-extrabold text-white">{stats.izin}</span>
+          </div>
+          <div>
+            <span className="text-[10px] text-orange-400 font-bold block">TERLAMBAT</span>
+            <span className="text-base font-extrabold text-white">{stats.terlambat}</span>
           </div>
           <div>
             <span className="text-[10px] text-rose-400 font-bold block">ALPHA</span>
@@ -213,14 +289,15 @@ export const AbsenSiswaView: React.FC<AbsenSiswaViewProps> = ({
                           <span className="block text-[10px] text-slate-500 font-mono">NIS: {siswa.nomor}</span>
                         </td>
                         <td className="py-3 px-4 text-center">
-                          <div className="inline-flex rounded-xl bg-slate-950 p-1 border border-slate-800 gap-1">
-                            {(['Hadir', 'Sakit', 'Izin', 'Alpha'] as StatusAbsensi[]).map((status) => {
+                          <div className="inline-flex rounded-xl bg-slate-950 p-1 border border-slate-800 gap-1 flex-wrap justify-center">
+                            {(['Hadir', 'Sakit', 'Izin', 'Terlambat', 'Alpha'] as StatusAbsensi[]).map((status) => {
                               const isActive = st.status === status;
                               let activeClass = 'bg-slate-800 text-slate-400';
                               if (isActive) {
                                 if (status === 'Hadir') activeClass = 'bg-emerald-500 text-slate-950 font-extrabold';
                                 if (status === 'Sakit') activeClass = 'bg-blue-500 text-white font-extrabold';
                                 if (status === 'Izin') activeClass = 'bg-amber-400 text-slate-950 font-extrabold';
+                                if (status === 'Terlambat') activeClass = 'bg-orange-500 text-slate-950 font-extrabold';
                                 if (status === 'Alpha') activeClass = 'bg-rose-500 text-white font-extrabold';
                               }
 
@@ -262,30 +339,67 @@ export const AbsenSiswaView: React.FC<AbsenSiswaViewProps> = ({
         </div>
       )}
 
-      {/* Rekap Harian */}
+      {/* Rekap Harian / Semua Rekap Data */}
       {activeViewMode === 'rekap-harian' && (
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5">
-          <h3 className="text-sm font-bold text-white mb-4">
-            Rekap Absensi Semua Kelas — Tanggal {selectedDate}
-          </h3>
+        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 space-y-4">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-bold text-white">
+                Rekap Data Absensi {showAllDates ? 'Semua Tanggal' : `Tanggal ${selectedDate}`}
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Jumlah data ditemukan: {filteredRekapList.length} entri.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+              {/* Toggle Show All Dates */}
+              <button
+                onClick={() => setShowAllDates(!showAllDates)}
+                className={`px-3 py-2 rounded-xl text-xs font-bold transition-all border ${
+                  showAllDates
+                    ? 'bg-amber-400 text-slate-950 border-amber-400'
+                    : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                }`}
+              >
+                {showAllDates ? 'Filter Tanggal Ini Only' : 'Tampilkan Semua Tanggal'}
+              </button>
+
+              {/* Search Box */}
+              <div className="relative flex-1 md:w-64">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Cari nama, kelas, status..."
+                  value={rekapSearchTerm}
+                  onChange={(e) => setRekapSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400/60"
+                />
+              </div>
+            </div>
+          </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-300">
               <thead className="bg-slate-950 text-slate-400 font-bold uppercase text-[11px] border-b border-slate-800">
                 <tr>
-                  <th className="py-3 px-4">NO</th>
+                  <th className="py-3 px-4 text-center w-10">NO</th>
+                  {showAllDates && <th className="py-3 px-4">TANGGAL</th>}
                   <th className="py-3 px-4">NAMA SISWA</th>
                   <th className="py-3 px-4">KELAS</th>
                   <th className="py-3 px-4">STATUS</th>
                   <th className="py-3 px-4">CATATAN</th>
-                  <th className="py-3 px-4 text-center w-20">AKSI</th>
+                  <th className="py-3 px-4 text-center w-28">AKSI</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {absensiList.filter(a => a.tanggal === selectedDate).length > 0 ? (
-                  absensiList.filter(a => a.tanggal === selectedDate).map((item, idx) => (
-                    <tr key={item.id} className="hover:bg-slate-800/40">
-                      <td className="py-3 px-4 font-mono text-slate-500">{idx + 1}</td>
+                {filteredRekapList.length > 0 ? (
+                  filteredRekapList.map((item, idx) => (
+                    <tr key={item.id} className="hover:bg-slate-800/40 transition-colors">
+                      <td className="py-3 px-4 text-center font-mono text-slate-500">{idx + 1}</td>
+                      {showAllDates && (
+                        <td className="py-3 px-4 font-mono text-amber-300 whitespace-nowrap">{item.tanggal}</td>
+                      )}
                       <td className="py-3 px-4 font-bold text-white">{item.namaSiswa}</td>
                       <td className="py-3 px-4 text-amber-300 font-semibold">{item.kelas}</td>
                       <td className="py-3 px-4">
@@ -293,6 +407,7 @@ export const AbsenSiswaView: React.FC<AbsenSiswaViewProps> = ({
                           item.status === 'Hadir' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
                           item.status === 'Sakit' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' :
                           item.status === 'Izin' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+                          item.status === 'Terlambat' ? 'bg-orange-500/20 text-orange-300 border border-orange-500/30' :
                           'bg-rose-500/20 text-rose-300 border border-rose-500/30'
                         }`}>
                           {item.status}
@@ -300,29 +415,136 @@ export const AbsenSiswaView: React.FC<AbsenSiswaViewProps> = ({
                       </td>
                       <td className="py-3 px-4 text-slate-400">{item.catatan || '-'}</td>
                       <td className="py-3 px-4 text-center">
-                        <button
-                          onClick={() => {
-                            if (confirm(`Hapus data absensi ${item.namaSiswa}?`)) {
-                              onDeleteAbsensi?.(item.id);
-                            }
-                          }}
-                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-500/20 text-rose-400 transition-colors"
-                          title="Hapus Absensi"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEdit(item)}
+                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 transition-colors"
+                            title="Edit Absensi"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onDeleteAbsensi?.(item.id)}
+                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-500/20 text-rose-400 transition-colors"
+                            title="Hapus Absensi"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="text-center py-8 text-slate-500">
-                      Belum ada data absensi tercatat pada tanggal {selectedDate}.
+                    <td colSpan={showAllDates ? 7 : 6} className="text-center py-8 text-slate-500">
+                      {rekapSearchTerm
+                        ? 'Tidak ada data absensi yang sesuai dengan kata kunci pencarian.'
+                        : `Belum ada data absensi tercatat ${showAllDates ? '' : `pada tanggal ${selectedDate}`}.`}
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Edit Absensi */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[#0B1B47] border border-slate-700 text-slate-100 rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-700 mb-4">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Edit2 className="w-4 h-4 text-amber-400" />
+                <span>Edit Data Absensi Siswa</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Tanggal</label>
+                <input
+                  type="date"
+                  required
+                  value={editTanggal}
+                  onChange={(e) => setEditTanggal(e.target.value)}
+                  className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Nama Siswa</label>
+                <input
+                  type="text"
+                  required
+                  value={editNamaSiswa}
+                  onChange={(e) => setEditNamaSiswa(e.target.value)}
+                  className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Kelas</label>
+                <input
+                  type="text"
+                  required
+                  value={editKelas}
+                  onChange={(e) => setEditKelas(e.target.value)}
+                  className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Status Kehadiran</label>
+                <select
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value as StatusAbsensi)}
+                  className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60 font-bold"
+                >
+                  <option value="Hadir">Hadir</option>
+                  <option value="Sakit">Sakit</option>
+                  <option value="Izin">Izin</option>
+                  <option value="Terlambat">Terlambat</option>
+                  <option value="Alpha">Alpha</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Catatan / Keterangan</label>
+                <input
+                  type="text"
+                  placeholder="Catatan khusus (opsional)..."
+                  value={editCatatan}
+                  onChange={(e) => setEditCatatan(e.target.value)}
+                  className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60"
+                />
+              </div>
+
+              <div className="pt-3 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shadow-lg"
+                >
+                  Simpan Perubahan
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

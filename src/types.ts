@@ -12,7 +12,7 @@ export interface Siswa {
   createdAt?: string;
 }
 
-export type StatusAbsensi = 'Hadir' | 'Sakit' | 'Izin' | 'Alpha';
+export type StatusAbsensi = 'Hadir' | 'Sakit' | 'Izin' | 'Alpha' | 'Terlambat';
 
 export interface Absensi {
   id: string;
@@ -24,7 +24,7 @@ export interface Absensi {
   catatan?: string;
 }
 
-export type StatusKonseling = 'Proses' | 'Selesai' | 'Rujukan' | 'Pemantauan';
+export type StatusKonseling = string;
 
 export interface Konseling {
   id: string;
@@ -36,6 +36,7 @@ export interface Konseling {
   tindakLanjut: string;
   statusPenyelesaian: StatusKonseling;
   guruBK: string;
+  fotoDokumentasi?: string; // Base64 image URL (camera / gallery)
 }
 
 export interface JurnalHarian {
@@ -57,14 +58,22 @@ export interface PenilaianHarian {
   keterangan: string;
 }
 
+export interface TataTertibDocument {
+  id: string;
+  fileName: string;
+  fileData: string; // Base64 data URI
+  uploadedAt: string;
+}
+
 export interface AppDatabase {
   siswa: Siswa[];
   absensi: Absensi[];
   konseling: Konseling[];
   jurnal: JurnalHarian[];
   penilaian: PenilaianHarian[];
+  tataTertib: TataTertibDocument[];
   version: string;
   exportedAt?: string;
 }
 
-export type ActiveTab = 'dashboard' | 'siswa' | 'absensi' | 'konseling' | 'jurnal' | 'penilaian';
+export type ActiveTab = 'dashboard' | 'tatatertib' | 'siswa' | 'absensi' | 'konseling' | 'jurnal' | 'konseling_xi_tpmg' | 'penilaian';
