@@ -5,8 +5,8 @@ import mammoth from 'mammoth';
 import * as pdfjsLib from 'pdfjs-dist';
 import { TataTertibDocument } from '../types';
 
-// Set worker URL for pdfjs-dist
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version || '4.10.38'}/build/pdf.worker.min.mjs`;
+// Set worker URL for pdfjs-dist locally
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
 
 interface TataTertibViewProps {
   tataTertibList: TataTertibDocument[];
@@ -270,11 +270,11 @@ const PdfPageCanvas: React.FC<{
         context.imageSmoothingEnabled = true;
         context.imageSmoothingQuality = 'high';
 
-        const dpr = window.devicePixelRatio || 1;
-        const qualityMultiplier = Math.max(dpr * 2.5, 3.5);
+        // Optimal DPR calculation (max 2.0x for crisp sharp text without overflowing mobile GPU VRAM)
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
         const viewport = page.getViewport({ scale });
-        const hiResViewport = page.getViewport({ scale: scale * qualityMultiplier });
+        const hiResViewport = page.getViewport({ scale: scale * dpr });
 
         canvas.width = Math.floor(hiResViewport.width);
         canvas.height = Math.floor(hiResViewport.height);
@@ -296,7 +296,7 @@ const PdfPageCanvas: React.FC<{
   }, [pdfDoc, pageNumber, scale]);
 
   return (
-    <div className="flex flex-col items-center my-2 w-full max-w-4xl">
+    <div className="flex flex-col items-center my-2 w-full max-w-4xl touch-pan-y">
       <div className="text-xs font-black text-amber-300 bg-slate-900 border border-amber-400/30 px-3.5 py-1 rounded-full mb-2 shadow-md">
         Halaman {pageNumber}
       </div>
@@ -307,7 +307,9 @@ const PdfPageCanvas: React.FC<{
 
 const PdfViewer: React.FC<{ fileData: string; fileName: string; height?: string; extractedText?: string }> = ({ fileData, fileName, height = '800px', extractedText }) => {
   const [numPages, setNumPages] = useState<number>(0);
-  const [scale, setScale] = useState<number>(1.6);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [showAllPages, setShowAllPages] = useState<boolean>(false);
+  const [scale, setScale] = useState<number>(1.4);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<boolean>(false);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
@@ -329,17 +331,17 @@ const PdfViewer: React.FC<{ fileData: string; fileName: string; height?: string;
           bytes[i] = binaryStr.charCodeAt(i);
         }
 
+        // Offline-ready document loader without rigid external CDN font/cmap requirements
         const loadingTask = pdfjsLib.getDocument({ 
           data: bytes.buffer,
-          cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/cmaps/',
-          cMapPacked: true,
-          standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/standard_fonts/'
+          disableFontFace: false
         });
         const pdf = await loadingTask.promise;
         if (!isMounted) return;
 
         pdfDocRef.current = pdf;
         setNumPages(pdf.numPages);
+        setCurrentPage(1);
         setLoading(false);
       } catch (err) {
         console.warn('Gagal memuat PDF via pdfjs-dist:', err);
@@ -353,28 +355,28 @@ const PdfViewer: React.FC<{ fileData: string; fileName: string; height?: string;
     loadPdf();
     return () => { 
       isMounted = false; 
-      if (url && url.startsWith('blob:')) URL.revokeObjectURL(url);
     };
   }, [fileData]);
 
-  if (error) {
+  const handleOpenNative = () => {
     if (blobUrl) {
-      return (
-        <div className="w-full bg-slate-900 p-2 rounded-xl border border-slate-800" style={{ height }}>
-          <object
-            data={`${blobUrl}#view=FitH`}
-            type="application/pdf"
-            className="w-full h-full rounded-lg bg-white"
-          >
-            <iframe
-              src={`${blobUrl}#view=FitH`}
-              title={fileName}
-              className="w-full h-full rounded-lg bg-white border-0"
-            />
-          </object>
-        </div>
-      );
+      window.open(blobUrl, '_blank');
+    } else {
+      const win = window.open();
+      if (win) win.document.write(`<iframe src="${fileData}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
     }
+  };
+
+  const handleDownload = () => {
+    const a = document.createElement('a');
+    a.href = blobUrl || fileData;
+    a.download = fileName.endsWith('.pdf') ? fileName : `${fileName}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  if (error) {
     if (extractedText) {
       return <DocumentTextReader title={fileName} text={extractedText} />;
     }
@@ -387,56 +389,109 @@ const PdfViewer: React.FC<{ fileData: string; fileName: string; height?: string;
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-bold px-3 py-1 bg-amber-500/10 text-amber-300 border border-amber-500/20 rounded-lg flex items-center gap-1.5">
             <FileText className="w-3.5 h-3.5" />
-            <span>Mode Lembaran (100% Sesuai Halaman Dokumen Asli)</span>
+            <span>Mode Lembaran Presisi</span>
           </span>
-          {numPages > 0 && (
-            <span className="text-xs font-black px-2.5 py-1 bg-amber-400 text-slate-950 rounded-lg">
-              Total {numPages} Halaman
-            </span>
-          )}
+
+          {/* Quick Download / Native Mobile View Button */}
+          <button
+            type="button"
+            onClick={handleOpenNative}
+            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all flex items-center gap-1 shadow"
+            title="Buka dokumen PDF di tampilan bawaan HP / Tab Baru"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Buka/Unduh Dokumen</span>
+          </button>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setScale(s => Math.max(s - 0.2, 0.6))}
-            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white transition-colors"
-            title="Perkecil Tampilan"
-          >
-            <ZoomOut className="w-4 h-4" />
-          </button>
-          <span className="text-xs font-semibold text-slate-400 min-w-[45px] text-center">
-            {Math.round(scale * 100)}%
-          </span>
-          <button
-            type="button"
-            onClick={() => setScale(s => Math.min(s + 0.2, 2.5))}
-            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white transition-colors"
-            title="Perbesar Tampilan"
-          >
-            <ZoomIn className="w-4 h-4" />
-          </button>
+        {/* Page & Zoom Controls */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {numPages > 1 && (
+            <div className="flex items-center gap-1 bg-slate-950 px-2 py-1 rounded-lg border border-slate-800 text-xs">
+              <button
+                type="button"
+                disabled={currentPage <= 1 || showAllPages}
+                onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                className="px-2 py-0.5 rounded bg-slate-800 disabled:opacity-40 text-amber-300 font-bold"
+              >
+                &lt;
+              </button>
+              <span className="text-slate-300 font-bold px-1.5">
+                {showAllPages ? `Semua (${numPages})` : `${currentPage} / ${numPages}`}
+              </span>
+              <button
+                type="button"
+                disabled={currentPage >= numPages || showAllPages}
+                onClick={() => setCurrentPage(p => Math.min(p + 1, numPages))}
+                className="px-2 py-0.5 rounded bg-slate-800 disabled:opacity-40 text-amber-300 font-bold"
+              >
+                &gt;
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowAllPages(s => !s)}
+                className="ml-1 px-2 py-0.5 rounded bg-slate-800 text-[10px] text-amber-400 font-bold hover:bg-slate-700"
+              >
+                {showAllPages ? 'Per Halaman' : 'Lihat Semua'}
+              </button>
+            </div>
+          )}
+
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setScale(s => Math.max(s - 0.2, 0.6))}
+              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white transition-colors"
+              title="Perkecil Tampilan"
+            >
+              <ZoomOut className="w-4 h-4" />
+            </button>
+            <span className="text-xs font-semibold text-slate-400 min-w-[35px] text-center">
+              {Math.round(scale * 100)}%
+            </span>
+            <button
+              type="button"
+              onClick={() => setScale(s => Math.min(s + 0.2, 2.5))}
+              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white transition-colors"
+              title="Perbesar Tampilan"
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 
       {loading && (
         <div className="py-16 flex flex-col items-center justify-center space-y-3 bg-slate-950 w-full">
           <div className="w-9 h-9 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-slate-300 text-xs font-bold">Memuat Setiap Lembar Halaman Dokumen Asli...</p>
+          <p className="text-slate-300 text-xs font-bold">Memuat Halaman Dokumen PDF...</p>
         </div>
       )}
 
-      {/* PDF Continuous Vertical Scroll Viewport */}
+      {/* PDF Viewport */}
       {!loading && pdfDocRef.current && (
-        <div className="w-full overflow-y-auto p-4 sm:p-6 flex flex-col items-center bg-slate-900/60 space-y-6" style={{ maxHeight: height }}>
-          {Array.from({ length: numPages }, (_, index) => (
+        <div 
+          className="w-full overflow-y-auto overflow-x-auto p-3 sm:p-6 flex flex-col items-center bg-slate-900/60 space-y-6 touch-pan-y" 
+          style={{ maxHeight: height, WebkitOverflowScrolling: 'touch' }}
+        >
+          {showAllPages ? (
+            Array.from({ length: numPages }, (_, index) => (
+              <PdfPageCanvas
+                key={`pdf-page-${index + 1}`}
+                pdfDoc={pdfDocRef.current!}
+                pageNumber={index + 1}
+                scale={scale}
+              />
+            ))
+          ) : (
             <PdfPageCanvas
-              key={`pdf-page-${index + 1}`}
+              key={`pdf-page-${currentPage}`}
               pdfDoc={pdfDocRef.current!}
-              pageNumber={index + 1}
+              pageNumber={currentPage}
               scale={scale}
             />
-          ))}
+          )}
         </div>
       )}
     </div>

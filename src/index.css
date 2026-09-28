@@ -189,3 +189,27 @@ html.theme-emerald-white .bg-slate-950\/90 {
 html.theme-emerald-white .divide-slate-800 > :not([hidden]) ~ :not([hidden]) {
   border-color: #e2e8f0 !important;
 }
+
+/* =========================================================
+   MOBILE TOUCH RESPONSIVENESS & PERFORMANCE ENHANCEMENTS
+   ========================================================= */
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  touch-action: manipulation;
+  overflow-x: hidden;
+}
+
+/* Touch scrolling container optimizations */
+.overflow-y-auto, .overflow-x-auto, .overflow-auto {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Canvas hardware acceleration for 60fps scrolling */
+canvas {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
