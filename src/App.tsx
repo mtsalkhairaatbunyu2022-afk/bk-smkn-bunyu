@@ -147,12 +147,14 @@ export default function App() {
     init();
   }, [loadAllData]);
 
-  // Dark Mode Class Handler
+  // Dark / Emerald-White Theme Class Handler
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
+      document.documentElement.classList.remove('theme-emerald-white');
     } else {
       document.documentElement.classList.remove('dark');
+      document.documentElement.classList.add('theme-emerald-white');
     }
     localStorage.setItem('bk_dark_mode', String(darkMode));
   }, [darkMode]);

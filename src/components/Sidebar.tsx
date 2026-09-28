@@ -179,11 +179,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onClick={() => {
                     onToggleDarkMode();
                   }}
-                  className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-bold text-xs bg-slate-900 text-cyan-300 border border-cyan-500/40"
+                  className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-bold text-xs bg-slate-900 text-emerald-300 border border-emerald-500/40"
                 >
                   <div className="flex items-center gap-3">
-                    {darkMode ? <Sun className="w-4 h-4 text-emerald-400" /> : <Moon className="w-4 h-4 text-sky-400" />}
-                    <span>Mode Tampilan (<span className="text-emerald-400 font-black">{darkMode ? 'Gelap' : 'Terang'}</span>)</span>
+                    {darkMode ? <Sun className="w-4 h-4 text-emerald-400" /> : <Moon className="w-4 h-4 text-amber-300" />}
+                    <span>Tema (<span className="text-emerald-300 font-black">{darkMode ? 'Smooth Hijau Putih' : 'Navy Gelap'}</span>)</span>
                   </div>
                 </button>
               )}

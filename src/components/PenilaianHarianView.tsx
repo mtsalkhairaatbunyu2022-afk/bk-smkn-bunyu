@@ -23,6 +23,7 @@ export const PenilaianHarianView: React.FC<PenilaianHarianViewProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [kelasFilter, setKelasFilter] = useState('');
+  const [monthFilter, setMonthFilter] = useState('');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<PenilaianHarian | null>(null);
@@ -51,9 +52,10 @@ export const PenilaianHarianView: React.FC<PenilaianHarianViewProps> = ({
       const matchSearch = (p.namaSiswa || '').toLowerCase().includes(search) ||
         (p.mataPelajaran || '').toLowerCase().includes(search);
       const matchKelas = !kelasFilter || p.kelas === kelasFilter;
-      return matchSearch && matchKelas;
+      const matchMonth = !monthFilter || (p.tanggal || '').startsWith(monthFilter);
+      return matchSearch && matchKelas && matchMonth;
     });
-  }, [penilaianList, searchTerm, kelasFilter]);
+  }, [penilaianList, searchTerm, kelasFilter, monthFilter]);
 
   // Rata-rata otomatis calculation
   const averageGrade = useMemo(() => {
@@ -173,21 +175,21 @@ export const PenilaianHarianView: React.FC<PenilaianHarianViewProps> = ({
         </div>
       </div>
 
-      {/* Rata-Rata Otomatis Card & Search Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="p-4 rounded-xl bg-purple-950/40 border border-purple-500/30 flex items-center justify-between">
+      {/* Rata-Rata Otomatis Card & Search & Month Filter Bar */}
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+        <div className="p-3.5 rounded-xl bg-purple-950/40 border border-purple-500/30 flex items-center justify-between">
           <div>
-            <span className="text-[11px] font-bold text-purple-300 uppercase block">RATA-RATA OTOMATIS</span>
-            <span className="text-2xl font-black text-white">{averageGrade} / 100</span>
+            <span className="text-[10px] font-bold text-purple-300 uppercase block">RATA-RATA OTOMATIS</span>
+            <span className="text-xl font-black text-white">{averageGrade} / 100</span>
           </div>
-          <Award className="w-8 h-8 text-purple-400 opacity-60" />
+          <Award className="w-7 h-7 text-purple-400 opacity-60" />
         </div>
 
         <div className="relative">
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Cari nama siswa atau aspek..."
+            placeholder="Cari nama siswa..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full h-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400/60"
@@ -200,11 +202,28 @@ export const PenilaianHarianView: React.FC<PenilaianHarianViewProps> = ({
             onChange={(e) => setKelasFilter(e.target.value)}
             className="w-full h-full px-3 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-400/60"
           >
-            <option value="">PILIH SALAH SATU</option>
+            <option value="">SEMUA KELAS</option>
             {availableClasses.map(k => (
               <option key={k} value={k}>{k}</option>
             ))}
           </select>
+        </div>
+
+        <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded-xl px-2.5">
+          <input
+            type="month"
+            value={monthFilter}
+            onChange={(e) => setMonthFilter(e.target.value)}
+            className="w-full p-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-amber-300 font-bold focus:outline-none focus:border-amber-400/60"
+          />
+          {monthFilter && (
+            <button
+              onClick={() => setMonthFilter('')}
+              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs font-bold shrink-0"
+            >
+              Reset
+            </button>
+          )}
         </div>
       </div>
 

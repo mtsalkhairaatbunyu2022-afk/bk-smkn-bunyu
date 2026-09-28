@@ -83,13 +83,23 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="hidden md:inline">Backup DB</span>
           </button>
 
-          {/* Dark Mode Toggle */}
+          {/* Theme Mode Toggle (Navy Gelap / Hijau Putih Gradien) */}
           <button
             onClick={onToggleDarkMode}
-            className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700/60 transition-all"
-            title="Toggle Dark/Light Mode"
+            className="px-3 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700/60 transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
+            title="Ganti Mode Tema Tampilan (Navy Gelap / Smooth Hijau Putih)"
           >
-            {darkMode ? <Sun className="w-4 h-4 text-amber-300" /> : <Moon className="w-4 h-4 text-blue-300" />}
+            {darkMode ? (
+              <>
+                <Sun className="w-4 h-4 text-emerald-400" />
+                <span className="text-xs font-bold text-emerald-300 hidden xl:inline">Mode Hijau Putih</span>
+              </>
+            ) : (
+              <>
+                <Moon className="w-4 h-4 text-amber-300" />
+                <span className="text-xs font-bold text-amber-200 hidden xl:inline">Mode Navy Gelap</span>
+              </>
+            )}
           </button>
 
           {/* Install App Button */}

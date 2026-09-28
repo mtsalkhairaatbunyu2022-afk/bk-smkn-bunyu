@@ -20,8 +20,9 @@ export const AbsenSiswaView: React.FC<AbsenSiswaViewProps> = ({
   onExportExcel
 }) => {
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
   const [selectedKelas, setSelectedKelas] = useState<string>('XI TPMG');
-  const [activeViewMode, setActiveViewMode] = useState<'input' | 'rekap-harian'>('input');
+  const [activeViewMode, setActiveViewMode] = useState<'input' | 'rekap-harian' | 'rekap-bulanan'>('input');
 
   // Filter & Search states for Rekap Harian
   const [rekapSearchTerm, setRekapSearchTerm] = useState('');
@@ -152,6 +153,34 @@ export const AbsenSiswaView: React.FC<AbsenSiswaViewProps> = ({
     });
   }, [absensiList, selectedDate, showAllDates, rekapSearchTerm]);
 
+  // Monthly Rekap Summary Calculation
+  const monthlyRekapData = useMemo(() => {
+    const targetStudents = classStudents.length > 0 ? classStudents : siswaList;
+    const monthAbsensi = absensiList.filter(a => (a.tanggal || '').startsWith(selectedMonth));
+
+    return targetStudents.map(s => {
+      const records = monthAbsensi.filter(a => a.siswaId === s.id);
+      const hadir = records.filter(a => a.status === 'Hadir').length;
+      const sakit = records.filter(a => a.status === 'Sakit').length;
+      const izin = records.filter(a => a.status === 'Izin').length;
+      const terlambat = records.filter(a => a.status === 'Terlambat').length;
+      const alpha = records.filter(a => a.status === 'Alpha').length;
+      const totalRecorded = records.length;
+      const persenHadir = totalRecorded > 0 ? Math.round(((hadir + terlambat) / totalRecorded) * 100) : 100;
+
+      return {
+        siswa: s,
+        hadir,
+        sakit,
+        izin,
+        terlambat,
+        alpha,
+        totalRecorded,
+        persenHadir
+      };
+    });
+  }, [classStudents, siswaList, absensiList, selectedMonth]);
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Top Bar */}
@@ -166,11 +195,11 @@ export const AbsenSiswaView: React.FC<AbsenSiswaViewProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2 w-full md:w-auto">
+        <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
           <button
             onClick={() => setActiveViewMode('input')}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeViewMode === 'input' ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-300'
+              activeViewMode === 'input' ? 'bg-emerald-500 text-slate-950 shadow-md' : 'bg-slate-800 text-slate-300'
             }`}
           >
             Input Absensi
@@ -178,10 +207,18 @@ export const AbsenSiswaView: React.FC<AbsenSiswaViewProps> = ({
           <button
             onClick={() => setActiveViewMode('rekap-harian')}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeViewMode === 'rekap-harian' ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-300'
+              activeViewMode === 'rekap-harian' ? 'bg-emerald-500 text-slate-950 shadow-md' : 'bg-slate-800 text-slate-300'
             }`}
           >
             Rekap Harian
+          </button>
+          <button
+            onClick={() => setActiveViewMode('rekap-bulanan')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+              activeViewMode === 'rekap-bulanan' ? 'bg-amber-400 text-slate-950 shadow-md font-extrabold' : 'bg-slate-800 text-slate-300'
+            }`}
+          >
+            Rekap Bulanan
           </button>
           <button
             onClick={() => exportAbsensiExcel(absensiList, siswaList)}
@@ -203,13 +240,24 @@ export const AbsenSiswaView: React.FC<AbsenSiswaViewProps> = ({
       {/* Selectors Bar */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-2xl bg-slate-900/60 border border-slate-800">
         <div>
-          <label className="block text-xs font-semibold text-slate-400 mb-1">Pilih Tanggal</label>
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-400/60"
-          />
+          <label className="block text-xs font-semibold text-slate-400 mb-1">
+            {activeViewMode === 'rekap-bulanan' ? 'Pilih Bulan Rekap' : 'Pilih Tanggal'}
+          </label>
+          {activeViewMode === 'rekap-bulanan' ? (
+            <input
+              type="month"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-amber-300 font-bold focus:outline-none focus:border-amber-400/60"
+            />
+          ) : (
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-400/60"
+            />
+          )}
         </div>
 
         <div>
@@ -451,7 +499,84 @@ export const AbsenSiswaView: React.FC<AbsenSiswaViewProps> = ({
         </div>
       )}
 
-      {/* Modal Edit Absensi */}
+      {/* Mode Rekap Bulanan */}
+      {activeViewMode === 'rekap-bulanan' && (
+        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden shadow-lg space-y-4 p-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+            <div>
+              <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-amber-400" />
+                <span>Rekapitulasi Absensi Bulanan — Periode <span className="text-amber-300 font-mono">{selectedMonth}</span></span>
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Rincian total kehadiran, sakit, izin, dan alpa siswa untuk kelas <span className="text-white font-bold">{selectedKelas || 'Semua Kelas'}</span>
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              <button
+                onClick={() => exportAbsensiExcel(absensiList, siswaList)}
+                className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl text-xs font-black shadow flex items-center gap-1.5"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Cetak Rekap Bulanan</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs text-slate-300">
+              <thead className="bg-slate-950 text-slate-400 font-bold uppercase text-[11px] border-b border-slate-800">
+                <tr>
+                  <th className="py-3 px-4 text-center w-10">NO</th>
+                  <th className="py-3 px-4">NAMA SISWA</th>
+                  <th className="py-3 px-4">KELAS</th>
+                  <th className="py-3 px-4 text-center text-emerald-400">HADIR (H)</th>
+                  <th className="py-3 px-4 text-center text-blue-400">SAKIT (S)</th>
+                  <th className="py-3 px-4 text-center text-amber-400">IZIN (I)</th>
+                  <th className="py-3 px-4 text-center text-orange-400">TERLAMBAT</th>
+                  <th className="py-3 px-4 text-center text-rose-400">ALPHA (A)</th>
+                  <th className="py-3 px-4 text-center text-amber-300">PERSIAPAN/KEHADIRAN (%)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60 font-medium">
+                {monthlyRekapData.length > 0 ? (
+                  monthlyRekapData.map((item, idx) => (
+                    <tr key={item.siswa.id} className="hover:bg-slate-800/40 transition-colors">
+                      <td className="py-3 px-4 text-center font-mono text-slate-500">{idx + 1}</td>
+                      <td className="py-3 px-4 font-bold text-white">
+                        {item.siswa.nama}
+                        <span className="block text-[10px] text-slate-500 font-mono">NIS: {item.siswa.nomor}</span>
+                      </td>
+                      <td className="py-3 px-4 text-amber-300 font-semibold">{item.siswa.kelas}</td>
+                      <td className="py-3 px-4 text-center font-bold text-emerald-400">{item.hadir}</td>
+                      <td className="py-3 px-4 text-center font-bold text-blue-400">{item.sakit}</td>
+                      <td className="py-3 px-4 text-center font-bold text-amber-400">{item.izin}</td>
+                      <td className="py-3 px-4 text-center font-bold text-orange-400">{item.terlambat}</td>
+                      <td className="py-3 px-4 text-center font-bold text-rose-400">{item.alpha}</td>
+                      <td className="py-3 px-4 text-center">
+                        <span className={`px-2.5 py-1 rounded-lg text-[11px] font-black ${
+                          item.persenHadir >= 90 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
+                          item.persenHadir >= 75 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+                          'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                        }`}>
+                          {item.persenHadir}%
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={9} className="text-center py-8 text-slate-500">
+                      Belum ada data absensi tercatat pada bulan {selectedMonth}.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
       {isEditModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
           <div className="bg-[#0B1B47] border border-slate-700 text-slate-100 rounded-2xl max-w-md w-full p-6 shadow-2xl relative">

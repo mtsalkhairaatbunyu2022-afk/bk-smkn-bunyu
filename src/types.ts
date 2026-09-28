@@ -63,6 +63,8 @@ export interface TataTertibDocument {
   fileName: string;
   fileData: string; // Base64 data URI
   uploadedAt: string;
+  fileSizeFormatted?: string;
+  extractedText?: string;
 }
 
 export interface AppDatabase {

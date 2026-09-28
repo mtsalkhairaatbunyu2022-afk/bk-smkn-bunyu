@@ -1,1 +1,191 @@
 @import "tailwindcss";
+
+/* =========================================================
+   MODE SMOOTH HIJAU PUTIH (LIGHT EMERALD THEME) OVERRIDES
+   ========================================================= */
+
+html.theme-emerald-white body {
+  background: linear-gradient(135deg, #e6f7ef 0%, #f0fdf4 50%, #ffffff 100%) !important;
+  color: #0f172a !important;
+}
+
+/* Header & Navbar in Smooth Emerald White Mode */
+html.theme-emerald-white header {
+  background: linear-gradient(135deg, #064e3b 0%, #047857 60%, #0f766e 100%) !important;
+  border-color: #059669 !important;
+  box-shadow: 0 4px 20px -2px rgba(6, 78, 59, 0.25) !important;
+}
+
+html.theme-emerald-white header h1 {
+  color: #ffffff !important;
+}
+
+html.theme-emerald-white header span {
+  color: #e2e8f0 !important;
+}
+
+/* Main Navigation Bar (Sidebar / Horizontal Menu) */
+html.theme-emerald-white aside {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-color: #a7f3d0 !important;
+  box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.08) !important;
+}
+
+html.theme-emerald-white aside .text-slate-400 {
+  color: #047857 !important;
+}
+
+/* Navigation Buttons */
+html.theme-emerald-white nav button.bg-amber-400 {
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35) !important;
+}
+
+html.theme-emerald-white nav button.bg-amber-400 svg {
+  color: #ffffff !important;
+}
+
+html.theme-emerald-white nav button:not(.bg-amber-400) {
+  background-color: #f0fdf4 !important;
+  border-color: #a7f3d0 !important;
+  color: #065f46 !important;
+}
+
+html.theme-emerald-white nav button:not(.bg-amber-400):hover {
+  background-color: #d1fae5 !important;
+  color: #044e38 !important;
+}
+
+/* Card Containers & Panels */
+html.theme-emerald-white .bg-slate-900,
+html.theme-emerald-white .bg-slate-900\/80,
+html.theme-emerald-white .bg-slate-900\/90,
+html.theme-emerald-white .bg-slate-900\/60,
+html.theme-emerald-white .bg-slate-950,
+html.theme-emerald-white .bg-\[\#0B1B47\],
+html.theme-emerald-white .bg-\[\#071533\]\/80 {
+  background-color: #ffffff !important;
+  border-color: #d1fae5 !important;
+  box-shadow: 0 4px 20px -2px rgba(16, 185, 129, 0.08) !important;
+}
+
+html.theme-emerald-white .bg-slate-800,
+html.theme-emerald-white .bg-slate-800\/80,
+html.theme-emerald-white .bg-slate-800\/60,
+html.theme-emerald-white .bg-slate-800\/40,
+html.theme-emerald-white .bg-slate-800\/30 {
+  background-color: #f0fdf4 !important;
+  border-color: #a7f3d0 !important;
+}
+
+/* Borders */
+html.theme-emerald-white .border-slate-800,
+html.theme-emerald-white .border-slate-700,
+html.theme-emerald-white .border-slate-800\/60,
+html.theme-emerald-white .border-slate-800\/80 {
+  border-color: #d1fae5 !important;
+}
+
+/* Text Colors Adjustment */
+html.theme-emerald-white .text-white,
+html.theme-emerald-white .text-slate-100,
+html.theme-emerald-white .text-slate-200 {
+  color: #0f172a !important; /* Deep Graphite */
+}
+
+html.theme-emerald-white .text-slate-300,
+html.theme-emerald-white .text-slate-400 {
+  color: #334155 !important; /* Readable Charcoal */
+}
+
+html.theme-emerald-white .text-amber-300,
+html.theme-emerald-white .text-amber-400,
+html.theme-emerald-white .text-amber-500 {
+  color: #047857 !important; /* Emerald Green Text */
+}
+
+html.theme-emerald-white .text-indigo-400,
+html.theme-emerald-white .text-blue-400,
+html.theme-emerald-white .text-sky-400 {
+  color: #0d9488 !important; /* Teal accent */
+}
+
+html.theme-emerald-white .text-emerald-300,
+html.theme-emerald-white .text-emerald-400 {
+  color: #059669 !important;
+}
+
+/* Action Buttons (Yellow Amber Buttons) */
+html.theme-emerald-white button.bg-amber-400,
+html.theme-emerald-white label.bg-amber-400 {
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
+  color: #ffffff !important;
+}
+
+html.theme-emerald-white button.bg-amber-400:hover,
+html.theme-emerald-white label.bg-amber-400:hover {
+  background: linear-gradient(135deg, #047857 0%, #059669 100%) !important;
+  color: #ffffff !important;
+}
+
+/* Primary Form Inputs & Selects */
+html.theme-emerald-white input[type="text"],
+html.theme-emerald-white input[type="date"],
+html.theme-emerald-white input[type="month"],
+html.theme-emerald-white input[type="number"],
+html.theme-emerald-white select,
+html.theme-emerald-white textarea {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #a7f3d0 !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02) !important;
+}
+
+html.theme-emerald-white input:focus,
+html.theme-emerald-white select:focus,
+html.theme-emerald-white textarea:focus {
+  border-color: #10b981 !important;
+  outline: none !important;
+}
+
+html.theme-emerald-white input::placeholder,
+html.theme-emerald-white textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* Tables Styling */
+html.theme-emerald-white thead,
+html.theme-emerald-white thead.bg-slate-950,
+html.theme-emerald-white thead.bg-slate-900 {
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%) !important;
+  border-bottom: 2px solid #a7f3d0 !important;
+}
+
+html.theme-emerald-white th {
+  color: #065f46 !important;
+  font-weight: 800 !important;
+}
+
+html.theme-emerald-white tbody tr {
+  border-bottom-color: #e2e8f0 !important;
+}
+
+html.theme-emerald-white tbody tr:hover {
+  background-color: #f0fdf4 !important;
+}
+
+html.theme-emerald-white td {
+  color: #1e293b !important;
+}
+
+/* Badges & Modals */
+html.theme-emerald-white .bg-slate-950\/80,
+html.theme-emerald-white .bg-slate-950\/90 {
+  background-color: rgba(6, 78, 59, 0.35) !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+html.theme-emerald-white .divide-slate-800 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #e2e8f0 !important;
+}

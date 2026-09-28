@@ -432,34 +432,25 @@ export function exportMultiSheetDatabaseExcel(dbData: {
 
 // 7. Download Template Excel Data Siswa
 export function downloadTemplateExcelSiswa() {
-  const sampleRows = [
-    [1, 'Aditya Ramadansyah', 'X-TGP', 'TGP', 'L', '08123456789', 'Bapak Aditya'],
-    [2, 'Fadil Abbas', 'X-TGP', 'TGP', 'L', '08129876543', 'Bapak Fadil'],
-    [3, 'Ivada Fitrie Wardanny', 'X-TGP', 'TGP', 'P', '08134567890', 'Ibu Ivada'],
-    [4, 'Abdul Setiawan', 'X-TO 1', 'TO', 'L', '08121111222', 'Bapak Abdul'],
-    [5, 'Ahmad Imam Al Ghazali', 'X-TO 1', 'TO', 'L', '08123333444', 'Bapak Ahmad']
+  const sampleRowsFormat1 = [
+    [1, 'Ahmad Najib', 'X TO 1'],
+    [2, 'Ahmad Zulkifli Resi', 'X TO 1'],
+    [3, 'Muhammad Nizar Patahillah', 'X TO 1'],
+    [4, 'Alif Purnama', 'X TO 1'],
+    [5, 'Aulia Fitriani', 'X TO 1'],
+    [6, 'Devghan Langit Almansyah', 'X TO 1'],
+    [7, 'Dhanil Daeng Tata', 'X TO 1']
   ];
 
-  const mainHeaders = [
-    { title: 'NOMOR', rowSpan: 2 },
-    { title: 'NAMA', rowSpan: 2 },
-    { title: 'INFORMASI AKADEMIK', colSpan: 2 },
-    { title: 'INFORMASI WALI & KETERANGAN', colSpan: 3 }
-  ];
+  const headers = ['NOMOR', 'NAMA', 'KELAS+JURUSAN'];
 
-  const subHeaders = ['', '', 'KELAS', 'JURUSAN', 'JENIS KELAMIN', 'NO HP WALI', 'NAMA WALI'];
-
-  const worksheet = createFormattedSheet(
-    'TEMPLATE DATA SISWA SMKN 1 BUNYU',
-    mainHeaders,
-    subHeaders,
-    sampleRows,
-    [8, 30, 15, 15, 15, 20, 25]
-  );
+  const aoa = [headers, ...sampleRowsFormat1];
+  const worksheet = XLSX.utils.aoa_to_sheet(aoa);
+  worksheet['!cols'] = [{ wch: 10 }, { wch: 32 }, { wch: 20 }];
 
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Data Siswa');
-  XLSX.writeFile(workbook, 'Template_Data_Siswa_SMKN1_Bunyu.xlsx');
+  XLSX.writeFile(workbook, 'Template_Format_Data_Siswa_SMKN1_Bunyu.xlsx');
 }
 
 // 8. Excel Import Parser

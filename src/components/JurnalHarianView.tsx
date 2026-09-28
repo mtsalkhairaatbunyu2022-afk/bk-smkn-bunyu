@@ -19,6 +19,7 @@ export const JurnalHarianView: React.FC<JurnalHarianViewProps> = ({
   onDeleteJurnal
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [monthFilter, setMonthFilter] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<JurnalHarian | null>(null);
 
@@ -29,9 +30,11 @@ export const JurnalHarianView: React.FC<JurnalHarianViewProps> = ({
 
   const filteredList = jurnalList.filter(j => {
     const search = (searchTerm || '').toLowerCase();
-    return (j.aktivitas || '').toLowerCase().includes(search) ||
+    const matchSearch = (j.aktivitas || '').toLowerCase().includes(search) ||
       (j.catatan || '').toLowerCase().includes(search) ||
       (j.guruBK || '').toLowerCase().includes(search);
+    const matchMonth = !monthFilter || (j.tanggal || '').startsWith(monthFilter);
+    return matchSearch && matchMonth;
   });
 
   const handleOpenAdd = () => {
@@ -123,15 +126,34 @@ export const JurnalHarianView: React.FC<JurnalHarianViewProps> = ({
         </div>
       </div>
 
-      <div className="relative">
-        <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-        <input
-          type="text"
-          placeholder="Cari aktivitas atau catatan jurnal..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400/60"
-        />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="relative">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Cari aktivitas atau catatan jurnal..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400/60"
+          />
+        </div>
+        <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1">
+          <label className="text-xs font-bold text-slate-400 shrink-0">Rekap Bulan:</label>
+          <input
+            type="month"
+            value={monthFilter}
+            onChange={(e) => setMonthFilter(e.target.value)}
+            className="w-full p-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-amber-300 font-bold focus:outline-none focus:border-amber-400/60"
+          />
+          {monthFilter && (
+            <button
+              onClick={() => setMonthFilter('')}
+              className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold"
+            >
+              Reset
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden shadow-lg">

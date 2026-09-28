@@ -31,6 +31,7 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [monthFilter, setMonthFilter] = useState('');
 
   // Upload Data Siswa State
   const [uploadedFileName, setUploadedFileName] = useState('');
@@ -55,6 +56,52 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+
+  const [isLiveCameraOpen, setIsLiveCameraOpen] = useState(false);
+
+  const stopLiveCamera = () => {
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(track => track.stop());
+      mediaStreamRef.current = null;
+    }
+    setIsLiveCameraOpen(false);
+  };
+
+  const startLiveCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false
+      });
+      mediaStreamRef.current = stream;
+      setIsLiveCameraOpen(true);
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      }, 100);
+    } catch (err) {
+      // Fallback to file camera input
+      cameraInputRef.current?.click();
+    }
+  };
+
+  const capturePhotoFromStream = () => {
+    if (!videoRef.current) return;
+    const video = videoRef.current;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth || 1280;
+    canvas.height = video.videoHeight || 720;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      setFormFotoDokumentasi(dataUrl);
+    }
+    stopLiveCamera();
+  };
 
   const availableClassOptions = useMemo(() => {
     const classSet = new Set<string>();
@@ -83,9 +130,10 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
         (k.permasalahan || '').toLowerCase().includes(search) ||
         kKelas.includes(search);
       const matchStatus = !statusFilter || k.statusPenyelesaian === statusFilter;
-      return matchKelasFilter && matchSearch && matchStatus;
+      const matchMonth = !monthFilter || (k.tanggal || '').startsWith(monthFilter);
+      return matchKelasFilter && matchSearch && matchStatus && matchMonth;
     });
-  }, [konselingList, filterKelas, allowClasses, searchTerm, statusFilter]);
+  }, [konselingList, filterKelas, allowClasses, searchTerm, statusFilter, monthFilter]);
 
   const filteredSiswaList = useMemo(() => {
     const trimmedForm = (formKelas || '').trim().toLowerCase();
@@ -326,6 +374,52 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
         </div>
       </div>
 
+      {/* Search and Month Filter Bar */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-2xl bg-slate-900/60 border border-slate-800">
+        <div className="relative">
+          <Search className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+          <input
+            type="text"
+            placeholder="Cari nama siswa, kelas, masalah..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400/60"
+          />
+        </div>
+
+        <div>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="w-full p-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-400/60"
+          >
+            <option value="">Semua Status Penyelesaian</option>
+            <option value="Selesai">Selesai</option>
+            <option value="Proses">Proses</option>
+            <option value="Rujukan">Rujukan / Perlu Penanganan Khusus</option>
+          </select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-bold text-slate-400 shrink-0">Bulan:</label>
+          <input
+            type="month"
+            value={monthFilter}
+            onChange={(e) => setMonthFilter(e.target.value)}
+            className="w-full p-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-amber-300 font-bold focus:outline-none focus:border-amber-400/60"
+          />
+          {monthFilter && (
+            <button
+              onClick={() => setMonthFilter('')}
+              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold"
+              title="Reset Bulan"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Table Section */}
       <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden shadow-lg">
         <div className="overflow-x-auto">
@@ -563,11 +657,11 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
                   {/* Direct Camera Trigger */}
                   <button
                     type="button"
-                    onClick={() => cameraInputRef.current?.click()}
+                    onClick={startLiveCamera}
                     className="flex-1 py-2 px-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow"
                   >
-                    <Camera className="w-4 h-4" />
-                    <span>Kamera HP</span>
+                    <Camera className="w-4 h-4 text-amber-300" />
+                    <span>Ambil Foto (Kamera)</span>
                   </button>
 
                   {/* Gallery Input Trigger */}
@@ -577,7 +671,7 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
                     className="flex-1 py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow"
                   >
                     <ImageIcon className="w-4 h-4 text-emerald-400" />
-                    <span>Galeri HP</span>
+                    <span>Pilih dari Galeri</span>
                   </button>
 
                   {/* Hidden inputs */}
@@ -746,6 +840,51 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
               >
                 <Check className="w-4 h-4 stroke-[3]" />
                 <span>KONFIRMASI SIMPAN DATA SISWA</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Live Camera Stream Modal */}
+      {isLiveCameraOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-fade-in">
+          <div className="relative max-w-lg w-full bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-2xl flex flex-col items-center">
+            <button
+              onClick={stopLiveCamera}
+              className="absolute top-3 right-3 p-2 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            
+            <h4 className="text-sm font-bold text-amber-300 mb-3 flex items-center gap-2">
+              <Camera className="w-4 h-4 text-amber-400" /> Pengambilan Foto Bukti (Kamera Live)
+            </h4>
+
+            <div className="w-full bg-slate-950 rounded-xl overflow-hidden border border-slate-800 relative aspect-video flex items-center justify-center">
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                className="w-full h-full object-cover"
+              />
+            </div>
+
+            <div className="mt-4 flex items-center justify-between w-full gap-3">
+              <button
+                type="button"
+                onClick={stopLiveCamera}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-colors"
+              >
+                Batal
+              </button>
+
+              <button
+                type="button"
+                onClick={capturePhotoFromStream}
+                className="px-5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs transition-all flex items-center gap-2 shadow-lg shadow-amber-500/20"
+              >
+                <Camera className="w-4 h-4" />
+                <span>JEPRET / AMBIL FOTO</span>
               </button>
             </div>
           </div>
