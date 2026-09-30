@@ -1,5 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, FileText, Trash2, Edit2, Download, X, Image as ImageIcon, CheckCircle2, ZoomIn, ZoomOut } from 'lucide-react';
+import {
+  Upload,
+  FileText,
+  Trash2,
+  Edit2,
+  Download,
+  X,
+  Image as ImageIcon,
+  CheckCircle2,
+  ZoomIn,
+  ZoomOut,
+  RotateCw,
+  Eye,
+  Layers,
+  Sparkles,
+  Maximize2
+} from 'lucide-react';
 import * as docx from 'docx-preview';
 import mammoth from 'mammoth';
 import * as pdfjsLib from 'pdfjs-dist';
@@ -7,7 +23,11 @@ import { TataTertibDocument } from '../types';
 import { useConfirm } from '../context/ConfirmContext';
 
 // Set worker URL for pdfjs-dist locally
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
+try {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
+} catch (e) {
+  console.warn('PDF.js worker URL setup fallback:', e);
+}
 
 interface TataTertibViewProps {
   tataTertibList: TataTertibDocument[];
@@ -19,12 +39,12 @@ function getBlobUrlFromDataUrl(dataUrl: string): string | null {
   try {
     if (!dataUrl) return null;
     if (dataUrl.startsWith('blob:')) return dataUrl;
-    
+
     const parts = dataUrl.split(',');
     if (parts.length < 2) return null;
     const mimeMatch = parts[0].match(/:(.*?);/);
     const mime = mimeMatch ? mimeMatch[1] : 'application/pdf';
-    
+
     const binaryStr = atob(parts[1]);
     const len = binaryStr.length;
     const bytes = new Uint8Array(len);
@@ -39,9 +59,46 @@ function getBlobUrlFromDataUrl(dataUrl: string): string | null {
   }
 }
 
+function getFileType(fileName: string, fileData: string = ''): 'pdf' | 'word' | 'image' | 'text' {
+  const nameLower = (fileName || '').toLowerCase();
+  const dataLower = (fileData || '').toLowerCase();
+
+  if (
+    nameLower.endsWith('.png') ||
+    nameLower.endsWith('.jpg') ||
+    nameLower.endsWith('.jpeg') ||
+    nameLower.endsWith('.webp') ||
+    nameLower.endsWith('.gif') ||
+    dataLower.startsWith('data:image/')
+  ) {
+    return 'image';
+  }
+
+  if (
+    nameLower.endsWith('.pdf') ||
+    dataLower.includes('pdf') ||
+    dataLower.startsWith('data:application/pdf') ||
+    dataLower.startsWith('data:application/x-pdf')
+  ) {
+    return 'pdf';
+  }
+
+  if (
+    nameLower.endsWith('.docx') ||
+    nameLower.endsWith('.doc') ||
+    dataLower.includes('wordprocessingml') ||
+    dataLower.includes('msword') ||
+    dataLower.includes('officedocument')
+  ) {
+    return 'word';
+  }
+
+  return 'text';
+}
+
 const DocumentTextReader: React.FC<{ title?: string; text: string }> = ({ title, text }) => {
   return (
-    <div className="w-full bg-slate-950 text-slate-100 rounded-xl p-2 sm:p-4 border border-slate-800 shadow-2xl font-sans">
+    <div className="w-full bg-slate-950 text-slate-100 rounded-xl p-3 sm:p-5 border border-slate-800 shadow-2xl font-sans">
       <div className="max-w-4xl mx-auto bg-white text-slate-950 rounded-xl p-6 sm:p-10 shadow-2xl border-2 border-slate-300">
         {title && (
           <div className="border-b-2 border-slate-900 pb-4 mb-6 text-center">
@@ -56,10 +113,16 @@ const DocumentTextReader: React.FC<{ title?: string; text: string }> = ({ title,
   );
 };
 
-const WordViewer: React.FC<{ fileData: string; fileName: string; extractedText?: string }> = ({ fileData, fileName, extractedText }) => {
+const WordViewer: React.FC<{ fileData: string; fileName: string; extractedText?: string; isDraft?: boolean }> = ({
+  fileData,
+  fileName,
+  extractedText,
+  isDraft = false
+}) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [mammothHtml, setMammothHtml] = useState<string | null>(null);
   const [pageCount, setPageCount] = useState<number | null>(null);
 
   useEffect(() => {
@@ -68,6 +131,8 @@ const WordViewer: React.FC<{ fileData: string; fileName: string; extractedText?:
       try {
         setLoading(true);
         setError(false);
+        setMammothHtml(null);
+
         const base64 = fileData.split(',')[1] || fileData;
         const binaryStr = atob(base64);
         const bytes = new Uint8Array(binaryStr.length);
@@ -77,56 +142,59 @@ const WordViewer: React.FC<{ fileData: string; fileName: string; extractedText?:
 
         if (containerRef.current) {
           containerRef.current.innerHTML = '';
-          await docx.renderAsync(bytes.buffer, containerRef.current, undefined, {
-            className: "docx-render-wrapper",
-            inWrapper: true,
-            ignoreWidth: false,
-            ignoreHeight: false,
-            ignoreFonts: false,
-            breakPages: true, // Mempertahankan persis jumlah dan pemisah halaman seperti Word
-            ignoreLastRenderedPageBreak: false,
-            experimental: true,
-            useBase64URL: true,
-            renderHeaders: true,
-            renderFooters: true,
-            renderFootnotes: true,
-            renderEndnotes: true
-          });
+          try {
+            await docx.renderAsync(bytes.buffer, containerRef.current, undefined, {
+              className: 'docx-render-wrapper',
+              inWrapper: true,
+              ignoreWidth: false,
+              ignoreHeight: false,
+              ignoreFonts: false,
+              breakPages: true,
+              ignoreLastRenderedPageBreak: false,
+              experimental: true,
+              useBase64URL: true,
+              renderHeaders: true,
+              renderFooters: true,
+              renderFootnotes: true,
+              renderEndnotes: true
+            });
 
-          if (isMounted) {
-            // Hitung jumlah halaman yang dirender oleh docx-preview
-            const pages = containerRef.current.querySelectorAll('.docx-page, section.docx');
-            if (pages.length > 0) {
-              setPageCount(pages.length);
+            if (isMounted) {
+              const pages = containerRef.current.querySelectorAll('.docx-page, section.docx');
+              if (pages.length > 0) {
+                setPageCount(pages.length);
+              }
+              setLoading(false);
+              return;
             }
-            setLoading(false);
+          } catch (renderErr) {
+            console.warn('docx.renderAsync gagal, beralih ke mammoth HTML fallback:', renderErr);
           }
         }
-      } catch (err) {
-        console.warn('docx-preview error, attempting mammoth fallback:', err);
-        try {
-          const base64 = fileData.split(',')[1] || fileData;
-          const binaryStr = atob(base64);
-          const bytes = new Uint8Array(binaryStr.length);
-          for (let i = 0; i < binaryStr.length; i++) {
-            bytes[i] = binaryStr.charCodeAt(i);
-          }
-          const result = await mammoth.convertToHtml({ arrayBuffer: bytes.buffer });
-          if (containerRef.current && isMounted) {
-            containerRef.current.innerHTML = `<div class="p-8 bg-white text-slate-900 rounded-xl prose max-w-none shadow-xl">${result.value}</div>`;
-            setLoading(false);
-          }
-        } catch (e) {
-          if (isMounted) {
+
+        // Mammoth HTML Fallback
+        const result = await mammoth.convertToHtml({ arrayBuffer: bytes.buffer });
+        if (isMounted) {
+          if (result.value && result.value.trim().length > 0) {
+            setMammothHtml(result.value);
+          } else {
             setError(true);
-            setLoading(false);
           }
+          setLoading(false);
+        }
+      } catch (err) {
+        console.warn('Gagal membaca file Word:', err);
+        if (isMounted) {
+          setError(true);
+          setLoading(false);
         }
       }
     }
 
     renderDocx();
-    return () => { isMounted = false; };
+    return () => {
+      isMounted = false;
+    };
   }, [fileData]);
 
   if (error && extractedText) {
@@ -134,13 +202,13 @@ const WordViewer: React.FC<{ fileData: string; fileName: string; extractedText?:
   }
 
   return (
-    <div className="w-full flex flex-col items-center bg-slate-950 rounded-xl border border-slate-800 overflow-hidden shadow-2xl">
+    <div className={`w-full flex flex-col items-center bg-slate-950 rounded-xl border border-slate-800 overflow-hidden shadow-2xl ${isDraft ? 'max-h-[450px]' : ''}`}>
       {/* Header Info Bar */}
       <div className="w-full bg-slate-900 border-b border-slate-800 p-3 flex flex-wrap items-center justify-between gap-3 text-slate-200">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-bold px-3 py-1 bg-blue-500/10 text-blue-300 border border-blue-500/20 rounded-lg flex items-center gap-1.5">
             <FileText className="w-3.5 h-3.5" />
-            <span>Format Microsoft Word (1:1 Tata Letak & Halaman Sesuai File Asli)</span>
+            <span>Format Microsoft Word (Render 1:1 Presisi Asli)</span>
           </span>
           {pageCount && (
             <span className="text-xs font-black px-2.5 py-1 bg-amber-400 text-slate-950 rounded-lg">
@@ -151,17 +219,28 @@ const WordViewer: React.FC<{ fileData: string; fileName: string; extractedText?:
       </div>
 
       {loading && (
-        <div className="py-16 flex flex-col items-center justify-center space-y-3 bg-slate-950 w-full">
-          <div className="w-9 h-9 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-slate-300 text-xs font-bold">Memuat & Menyesuaikan Tata Letak Word 1:1 Sesuai Dokumen Asli...</p>
+        <div className="py-12 flex flex-col items-center justify-center space-y-3 bg-slate-950 w-full">
+          <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-slate-300 text-xs font-bold">Memuat & Menyesuaikan Tata Letak Word Real-Time...</p>
         </div>
       )}
 
-      <div 
+      {mammothHtml && !loading && (
+        <div className={`w-full overflow-y-auto p-4 sm:p-8 bg-slate-900/60 ${isDraft ? 'max-h-[360px]' : 'max-h-[85vh]'}`}>
+          <div
+            className="max-w-4xl mx-auto bg-white text-slate-950 rounded-xl p-6 sm:p-10 shadow-2xl border-2 border-slate-300 prose max-w-none"
+            dangerouslySetInnerHTML={{ __html: mammothHtml }}
+          />
+        </div>
+      )}
+
+      <div
         ref={containerRef}
-        className="w-full overflow-x-auto overflow-y-auto max-h-[85vh] p-4 sm:p-8 bg-slate-900/60 flex flex-col items-center"
+        className={`w-full overflow-x-auto overflow-y-auto p-4 sm:p-8 bg-slate-900/60 flex flex-col items-center ${
+          mammothHtml ? 'hidden' : ''
+        } ${isDraft ? 'max-h-[360px]' : 'max-h-[85vh]'}`}
       />
-      
+
       <style>{`
         .docx-render-wrapper {
           background-color: transparent !important;
@@ -196,17 +275,26 @@ const WordViewer: React.FC<{ fileData: string; fileName: string; extractedText?:
   );
 };
 
-const ImageViewer: React.FC<{ fileData: string; fileName: string }> = ({ fileData, fileName }) => {
+const ImageViewer: React.FC<{ fileData: string; fileName: string; isDraft?: boolean }> = ({ fileData, fileName, isDraft = false }) => {
   const [zoomLevel, setZoomLevel] = useState<number>(100);
+  const [rotation, setRotation] = useState<number>(0);
 
   return (
-    <div className="w-full flex flex-col items-center bg-slate-950 rounded-xl border border-slate-800 overflow-hidden shadow-2xl">
+    <div className={`w-full flex flex-col items-center bg-slate-950 rounded-xl border border-slate-800 overflow-hidden shadow-2xl ${isDraft ? 'max-h-[450px]' : ''}`}>
       <div className="w-full bg-slate-900 border-b border-slate-800 p-3 flex flex-wrap items-center justify-between gap-3 text-slate-200">
         <span className="text-xs font-bold px-3 py-1 bg-amber-500/10 text-amber-300 border border-amber-500/20 rounded-lg flex items-center gap-1.5">
           <ImageIcon className="w-3.5 h-3.5" />
           <span>Scan Gambar Kop & Stempel TTD Kepsek (100% Resolusi Tajam Asli)</span>
         </span>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setRotation(r => (r + 90) % 360)}
+            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white transition-colors"
+            title="Putar Gambar 90 Derajat"
+          >
+            <RotateCw className="w-4 h-4" />
+          </button>
           <button
             type="button"
             onClick={() => setZoomLevel(z => Math.max(z - 25, 50))}
@@ -226,18 +314,22 @@ const ImageViewer: React.FC<{ fileData: string; fileName: string }> = ({ fileDat
           </button>
           <button
             type="button"
-            onClick={() => setZoomLevel(100)}
+            onClick={() => {
+              setZoomLevel(100);
+              setRotation(0);
+            }}
             className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-colors"
           >
-            Fit 100%
+            Reset
           </button>
         </div>
       </div>
-      <div className="w-full overflow-auto max-h-[85vh] p-4 flex items-center justify-center bg-slate-900/60">
+      <div className={`w-full overflow-auto p-4 flex items-center justify-center bg-slate-900/60 ${isDraft ? 'max-h-[360px]' : 'max-h-[85vh]'}`}>
         <img
           src={fileData}
           alt={fileName}
           style={{
+            transform: `rotate(${rotation}deg)`,
             width: zoomLevel === 100 ? 'auto' : `${zoomLevel}%`,
             maxWidth: zoomLevel === 100 ? '100%' : 'none',
             imageRendering: '-webkit-optimize-contrast'
@@ -271,9 +363,7 @@ const PdfPageCanvas: React.FC<{
         context.imageSmoothingEnabled = true;
         context.imageSmoothingQuality = 'high';
 
-        // Optimal DPR calculation (max 2.0x for crisp sharp text without overflowing mobile GPU VRAM)
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
-
         const viewport = page.getViewport({ scale });
         const hiResViewport = page.getViewport({ scale: scale * dpr });
 
@@ -289,11 +379,13 @@ const PdfPageCanvas: React.FC<{
         };
         await page.render(renderContext).promise;
       } catch (err) {
-        console.warn(`Gagal merender halaman ${pageNumber}:`, err);
+        console.warn(`Gagal merender halaman PDF ${pageNumber}:`, err);
       }
     }
     renderPage();
-    return () => { isMounted = false; };
+    return () => {
+      isMounted = false;
+    };
   }, [pdfDoc, pageNumber, scale]);
 
   return (
@@ -301,18 +393,29 @@ const PdfPageCanvas: React.FC<{
       <div className="text-xs font-black text-amber-300 bg-slate-900 border border-amber-400/30 px-3.5 py-1 rounded-full mb-2 shadow-md">
         Halaman {pageNumber}
       </div>
-      <canvas ref={canvasRef} style={{ imageRendering: '-webkit-optimize-contrast' }} className="shadow-2xl rounded-md bg-white max-w-full border border-slate-300" />
+      <canvas
+        ref={canvasRef}
+        style={{ imageRendering: '-webkit-optimize-contrast' }}
+        className="shadow-2xl rounded-md bg-white max-w-full border border-slate-300"
+      />
     </div>
   );
 };
 
-const PdfViewer: React.FC<{ fileData: string; fileName: string; height?: string; extractedText?: string }> = ({ fileData, fileName, height = '800px', extractedText }) => {
+const PdfViewer: React.FC<{
+  fileData: string;
+  fileName: string;
+  height?: string;
+  extractedText?: string;
+  isDraft?: boolean;
+}> = ({ fileData, fileName, height = '750px', extractedText, isDraft = false }) => {
   const [numPages, setNumPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const [showAllPages, setShowAllPages] = useState<boolean>(false);
-  const [scale, setScale] = useState<number>(1.4);
+  const [showAllPages, setShowAllPages] = useState<boolean>(!isDraft);
+  const [scale, setScale] = useState<number>(isDraft ? 1.0 : 1.3);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<boolean>(false);
+  const [viewMode, setViewMode] = useState<'canvas' | 'native'>('canvas');
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const pdfDocRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
 
@@ -332,8 +435,7 @@ const PdfViewer: React.FC<{ fileData: string; fileName: string; height?: string;
           bytes[i] = binaryStr.charCodeAt(i);
         }
 
-        // Offline-ready document loader without rigid external CDN font/cmap requirements
-        const loadingTask = pdfjsLib.getDocument({ 
+        const loadingTask = pdfjsLib.getDocument({
           data: bytes.buffer,
           disableFontFace: false
         });
@@ -345,136 +447,148 @@ const PdfViewer: React.FC<{ fileData: string; fileName: string; height?: string;
         setCurrentPage(1);
         setLoading(false);
       } catch (err) {
-        console.warn('Gagal memuat PDF via pdfjs-dist:', err);
+        console.warn('PDF.js canvas renderer error, switching to native fallback mode:', err);
         if (isMounted) {
-          setError(true);
+          setViewMode('native');
           setLoading(false);
         }
       }
     }
 
     loadPdf();
-    return () => { 
-      isMounted = false; 
+    return () => {
+      isMounted = false;
     };
   }, [fileData]);
 
   const handleOpenNative = () => {
     if (blobUrl) {
       window.open(blobUrl, '_blank');
-    } else {
-      const win = window.open();
-      if (win) win.document.write(`<iframe src="${fileData}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
     }
   };
-
-  const handleDownload = () => {
-    const a = document.createElement('a');
-    a.href = blobUrl || fileData;
-    a.download = fileName.endsWith('.pdf') ? fileName : `${fileName}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  };
-
-  if (error) {
-    if (extractedText) {
-      return <DocumentTextReader title={fileName} text={extractedText} />;
-    }
-  }
 
   return (
-    <div className="w-full flex flex-col items-center bg-slate-950 rounded-xl border border-slate-800 overflow-hidden shadow-2xl">
+    <div className={`w-full flex flex-col items-center bg-slate-950 rounded-xl border border-slate-800 overflow-hidden shadow-2xl ${isDraft ? 'max-h-[450px]' : ''}`}>
       {/* Controls Header */}
       <div className="w-full bg-slate-900 border-b border-slate-800 p-3 flex flex-wrap items-center justify-between gap-3 text-slate-200">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-bold px-3 py-1 bg-amber-500/10 text-amber-300 border border-amber-500/20 rounded-lg flex items-center gap-1.5">
             <FileText className="w-3.5 h-3.5" />
-            <span>Mode Lembaran Presisi</span>
+            <span>Mode Lembaran PDF 100% Offline</span>
           </span>
 
-          {/* Quick Download / Native Mobile View Button */}
-          <button
-            type="button"
-            onClick={handleOpenNative}
-            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all flex items-center gap-1 shadow"
-            title="Buka dokumen PDF di tampilan bawaan HP / Tab Baru"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>Buka/Unduh Dokumen</span>
-          </button>
+          <div className="flex items-center gap-1 bg-slate-950 p-0.5 rounded-lg border border-slate-800">
+            <button
+              type="button"
+              onClick={() => setViewMode('canvas')}
+              className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all ${
+                viewMode === 'canvas'
+                  ? 'bg-amber-400 text-slate-950 shadow'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Canvas 1:1
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('native')}
+              className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all ${
+                viewMode === 'native'
+                  ? 'bg-amber-400 text-slate-950 shadow'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Viewer Tersemat
+            </button>
+          </div>
+
+          {blobUrl && (
+            <button
+              type="button"
+              onClick={handleOpenNative}
+              className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all flex items-center gap-1 shadow"
+              title="Buka dokumen PDF di tab / aplikasi bawaan"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Buka Bawaan</span>
+            </button>
+          )}
         </div>
 
-        {/* Page & Zoom Controls */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {numPages > 1 && (
-            <div className="flex items-center gap-1 bg-slate-950 px-2 py-1 rounded-lg border border-slate-800 text-xs">
+        {/* Page & Zoom Controls for Canvas Mode */}
+        {viewMode === 'canvas' && (
+          <div className="flex items-center gap-2 flex-wrap">
+            {numPages > 1 && (
+              <div className="flex items-center gap-1 bg-slate-950 px-2 py-1 rounded-lg border border-slate-800 text-xs">
+                <button
+                  type="button"
+                  disabled={currentPage <= 1 || showAllPages}
+                  onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                  className="px-2 py-0.5 rounded bg-slate-800 disabled:opacity-40 text-amber-300 font-bold"
+                >
+                  &lt;
+                </button>
+                <span className="text-slate-300 font-bold px-1.5">
+                  {showAllPages ? `Semua (${numPages})` : `${currentPage} / ${numPages}`}
+                </span>
+                <button
+                  type="button"
+                  disabled={currentPage >= numPages || showAllPages}
+                  onClick={() => setCurrentPage(p => Math.min(p + 1, numPages))}
+                  className="px-2 py-0.5 rounded bg-slate-800 disabled:opacity-40 text-amber-300 font-bold"
+                >
+                  &gt;
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowAllPages(s => !s)}
+                  className="ml-1 px-2 py-0.5 rounded bg-slate-800 text-[10px] text-amber-400 font-bold hover:bg-slate-700"
+                >
+                  {showAllPages ? 'Per Halaman' : 'Lihat Semua'}
+                </button>
+              </div>
+            )}
+
+            <div className="flex items-center gap-1">
               <button
                 type="button"
-                disabled={currentPage <= 1 || showAllPages}
-                onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
-                className="px-2 py-0.5 rounded bg-slate-800 disabled:opacity-40 text-amber-300 font-bold"
+                onClick={() => setScale(s => Math.max(s - 0.2, 0.6))}
+                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white transition-colors"
+                title="Perkecil Tampilan"
               >
-                &lt;
+                <ZoomOut className="w-4 h-4" />
               </button>
-              <span className="text-slate-300 font-bold px-1.5">
-                {showAllPages ? `Semua (${numPages})` : `${currentPage} / ${numPages}`}
+              <span className="text-xs font-semibold text-slate-400 min-w-[35px] text-center">
+                {Math.round(scale * 100)}%
               </span>
               <button
                 type="button"
-                disabled={currentPage >= numPages || showAllPages}
-                onClick={() => setCurrentPage(p => Math.min(p + 1, numPages))}
-                className="px-2 py-0.5 rounded bg-slate-800 disabled:opacity-40 text-amber-300 font-bold"
+                onClick={() => setScale(s => Math.min(s + 0.2, 2.5))}
+                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white transition-colors"
+                title="Perbesar Tampilan"
               >
-                &gt;
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowAllPages(s => !s)}
-                className="ml-1 px-2 py-0.5 rounded bg-slate-800 text-[10px] text-amber-400 font-bold hover:bg-slate-700"
-              >
-                {showAllPages ? 'Per Halaman' : 'Lihat Semua'}
+                <ZoomIn className="w-4 h-4" />
               </button>
             </div>
-          )}
-
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setScale(s => Math.max(s - 0.2, 0.6))}
-              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white transition-colors"
-              title="Perkecil Tampilan"
-            >
-              <ZoomOut className="w-4 h-4" />
-            </button>
-            <span className="text-xs font-semibold text-slate-400 min-w-[35px] text-center">
-              {Math.round(scale * 100)}%
-            </span>
-            <button
-              type="button"
-              onClick={() => setScale(s => Math.min(s + 0.2, 2.5))}
-              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white transition-colors"
-              title="Perbesar Tampilan"
-            >
-              <ZoomIn className="w-4 h-4" />
-            </button>
           </div>
-        </div>
+        )}
       </div>
 
       {loading && (
-        <div className="py-16 flex flex-col items-center justify-center space-y-3 bg-slate-950 w-full">
-          <div className="w-9 h-9 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-slate-300 text-xs font-bold">Memuat Halaman Dokumen PDF...</p>
+        <div className="py-12 flex flex-col items-center justify-center space-y-3 bg-slate-950 w-full">
+          <div className="w-8 h-8 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-slate-300 text-xs font-bold">Menyiapkan Pratinjau Halaman PDF Real-Time...</p>
         </div>
       )}
 
-      {/* PDF Viewport */}
-      {!loading && pdfDocRef.current && (
-        <div 
-          className="w-full overflow-y-auto overflow-x-auto p-3 sm:p-6 flex flex-col items-center bg-slate-900/60 space-y-6 touch-pan-y" 
-          style={{ maxHeight: height, WebkitOverflowScrolling: 'touch' }}
+      {/* Mode 1: Canvas Render */}
+      {!loading && viewMode === 'canvas' && pdfDocRef.current && (
+        <div
+          className={`w-full overflow-y-auto overflow-x-auto p-3 sm:p-6 flex flex-col items-center bg-slate-900/60 space-y-6 touch-pan-y ${
+            isDraft ? 'max-h-[360px]' : ''
+          }`}
+          style={{ maxHeight: isDraft ? '360px' : height, WebkitOverflowScrolling: 'touch' }}
         >
           {showAllPages ? (
             Array.from({ length: numPages }, (_, index) => (
@@ -495,6 +609,74 @@ const PdfViewer: React.FC<{ fileData: string; fileName: string; height?: string;
           )}
         </div>
       )}
+
+      {/* Mode 2: Native Embedded PDF Object/iFrame Fallback */}
+      {(!loading && viewMode === 'native') || error ? (
+        <div className={`w-full p-2 bg-slate-900/80 flex flex-col items-center ${isDraft ? 'h-[360px]' : 'h-[750px]'}`}>
+          <object
+            data={blobUrl || fileData}
+            type="application/pdf"
+            className="w-full h-full rounded-lg border border-slate-700 shadow-xl bg-white"
+          >
+            <iframe
+              src={blobUrl || fileData}
+              title={fileName}
+              className="w-full h-full rounded-lg border border-slate-700 shadow-xl bg-white"
+            />
+          </object>
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
+export const LiveDocumentRenderer: React.FC<{
+  fileData: string;
+  fileName: string;
+  extractedText?: string;
+  isDraft?: boolean;
+}> = ({ fileData, fileName, extractedText, isDraft = false }) => {
+  const type = getFileType(fileName, fileData);
+
+  if (type === 'image') {
+    return <ImageViewer fileData={fileData} fileName={fileName} isDraft={isDraft} />;
+  }
+
+  if (type === 'pdf') {
+    return (
+      <PdfViewer
+        fileData={fileData}
+        fileName={fileName}
+        extractedText={extractedText}
+        isDraft={isDraft}
+        height="750px"
+      />
+    );
+  }
+
+  if (type === 'word') {
+    return (
+      <WordViewer
+        fileData={fileData}
+        fileName={fileName}
+        extractedText={extractedText}
+        isDraft={isDraft}
+      />
+    );
+  }
+
+  if (extractedText) {
+    return <DocumentTextReader title={fileName} text={extractedText} />;
+  }
+
+  return (
+    <div className="w-full bg-white text-slate-950 rounded-xl p-4 sm:p-6 shadow-2xl border-2 border-slate-300 flex flex-col items-center">
+      <h4 className="text-base font-extrabold text-slate-950 mb-3 w-full border-b pb-2">{fileName}</h4>
+      <iframe
+        src={fileData}
+        title={fileName}
+        className="w-full h-[550px] rounded-lg border border-slate-300 bg-slate-100"
+      />
     </div>
   );
 };
@@ -507,7 +689,12 @@ export const TataTertibView: React.FC<TataTertibViewProps> = ({
   const { confirmAction } = useConfirm();
   const [isUploading, setIsUploading] = useState(false);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
-  const [uploadDraft, setUploadDraft] = useState<{ fileName: string; fileData: string; fileSizeFormatted: string; extractedText?: string } | null>(null);
+  const [uploadDraft, setUploadDraft] = useState<{
+    fileName: string;
+    fileData: string;
+    fileSizeFormatted: string;
+    extractedText?: string;
+  } | null>(null);
   const [uploadFileNameInput, setUploadFileNameInput] = useState('');
   const [docToDelete, setDocToDelete] = useState<TataTertibDocument | null>(null);
   const [editingDoc, setEditingDoc] = useState<TataTertibDocument | null>(null);
@@ -566,6 +753,7 @@ export const TataTertibView: React.FC<TataTertibViewProps> = ({
     };
 
     onAddTataTertib(updatedDoc);
+    setActiveDocId(updatedDoc.id);
     setEditingDoc(null);
   };
 
@@ -585,42 +773,58 @@ export const TataTertibView: React.FC<TataTertibViewProps> = ({
     reader.readAsDataURL(file);
   };
 
-  const processFile = (file: File) => {
+  const processFile = async (file: File) => {
     const nameLower = file.name.toLowerCase();
-    const isValidFormat = 
-      nameLower.endsWith('.doc') || 
-      nameLower.endsWith('.docx') || 
-      nameLower.endsWith('.pdf') || 
-      nameLower.endsWith('.png') || 
-      nameLower.endsWith('.jpg') || 
-      nameLower.endsWith('.jpeg') || 
+    const isValidFormat =
+      nameLower.endsWith('.doc') ||
+      nameLower.endsWith('.docx') ||
+      nameLower.endsWith('.pdf') ||
+      nameLower.endsWith('.png') ||
+      nameLower.endsWith('.jpg') ||
+      nameLower.endsWith('.jpeg') ||
+      nameLower.endsWith('.webp') ||
       file.type.includes('word') ||
       file.type.includes('pdf') ||
       file.type.startsWith('image/');
 
     if (!isValidFormat) {
-      alert('Harap unggah file dalam format Word (.doc/.docx), PDF (.pdf), atau Gambar (.png/.jpg)');
+      alert('Harap unggah file dalam format Word (.doc/.docx), PDF (.pdf), atau Gambar (.png/.jpg/.jpeg)');
       return;
     }
 
     setIsUploading(true);
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       const fileData = event.target?.result as string;
       const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2) + ' MB';
-      
+      let extractedText: string | undefined = undefined;
+
+      // Extract text in background for Word files
+      if (nameLower.endsWith('.docx') || nameLower.endsWith('.doc')) {
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          const raw = await mammoth.extractRawText({ arrayBuffer });
+          if (raw.value) {
+            extractedText = raw.value;
+          }
+        } catch (e) {
+          console.warn('Text extraction skipped:', e);
+        }
+      }
+
       setUploadDraft({
         fileName: file.name,
         fileData: fileData,
         fileSizeFormatted: fileSizeMB,
+        extractedText
       });
       setUploadFileNameInput(file.name);
       setIsUploading(false);
     };
-    
+
     reader.onerror = () => {
-      alert('Gagal membaca file');
+      alert('Gagal membaca file.');
       setIsUploading(false);
     };
 
@@ -661,9 +865,8 @@ export const TataTertibView: React.FC<TataTertibViewProps> = ({
     if (!uploadDraft) return;
 
     let finalName = uploadFileNameInput.trim() || uploadDraft.fileName;
-    // Maintain extension if user typed a name without extension
-    const origExt = uploadDraft.fileName.includes('.') 
-      ? uploadDraft.fileName.slice(uploadDraft.fileName.lastIndexOf('.')) 
+    const origExt = uploadDraft.fileName.includes('.')
+      ? uploadDraft.fileName.slice(uploadDraft.fileName.lastIndexOf('.'))
       : '';
     if (origExt && !finalName.toLowerCase().endsWith(origExt.toLowerCase())) {
       finalName = `${finalName}${origExt}`;
@@ -673,7 +876,7 @@ export const TataTertibView: React.FC<TataTertibViewProps> = ({
       title: 'Konfirmasi Unggah Dokumen',
       message: `Apakah Anda yakin ingin mengunggah dan menyimpan dokumen "${finalName}"?`,
       type: 'upload',
-      confirmText: 'Ya, Unggah'
+      confirmText: 'Ya, Unggah & Simpan'
     });
     if (!confirmed) return;
 
@@ -688,20 +891,19 @@ export const TataTertibView: React.FC<TataTertibViewProps> = ({
 
     onAddTataTertib(newDoc);
     setActiveDocId(newDoc.id);
-    
+
     setUploadDraft(null);
     setUploadFileNameInput('');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
 
-    // Smooth scroll to preview section
     setTimeout(() => {
       const el = document.getElementById(`doc-preview-single`);
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
-    }, 100);
+    }, 150);
   };
 
   const handleDownload = async (doc: TataTertibDocument) => {
@@ -722,21 +924,15 @@ export const TataTertibView: React.FC<TataTertibViewProps> = ({
   };
 
   const getFileBadge = (fileName: string) => {
-    const nameLower = fileName.toLowerCase();
-    if (nameLower.endsWith('.pdf')) {
+    const type = getFileType(fileName);
+    if (type === 'pdf') {
       return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">PDF</span>;
     }
-    if (nameLower.endsWith('.png') || nameLower.endsWith('.jpg') || nameLower.endsWith('.jpeg')) {
+    if (type === 'image') {
       return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">GAMBAR</span>;
     }
     return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">WORD</span>;
   };
-
-  const activeNameLower = activeDoc ? activeDoc.fileName.toLowerCase() : '';
-  const activeDataLower = activeDoc ? (activeDoc.fileData || '').toLowerCase() : '';
-  const isImg = activeDoc && (activeNameLower.endsWith('.png') || activeNameLower.endsWith('.jpg') || activeNameLower.endsWith('.jpeg') || activeDataLower.startsWith('data:image/'));
-  const isPdf = activeDoc && (activeNameLower.endsWith('.pdf') || activeDataLower.includes('pdf') || activeDataLower.startsWith('data:application/pdf') || activeDataLower.startsWith('data:application/x-pdf'));
-  const isWord = activeDoc && (activeNameLower.endsWith('.docx') || activeNameLower.endsWith('.doc') || activeDataLower.includes('wordprocessingml') || activeDataLower.includes('msword') || activeDataLower.includes('officedocument'));
 
   return (
     <div className="bg-[#071533]/80 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-xl animate-fade-in space-y-6">
@@ -752,12 +948,12 @@ export const TataTertibView: React.FC<TataTertibViewProps> = ({
         </div>
 
         <div>
-          <label className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs sm:text-sm transition-all cursor-pointer shadow-lg shadow-blue-600/20">
+          <label className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs sm:text-sm transition-all cursor-pointer shadow-lg shadow-blue-600/20 active:scale-95">
             <Upload className="w-4 h-4" />
             <span>{isUploading ? 'Mengunggah...' : 'Unggah Dokumen'}</span>
             <input
               type="file"
-              accept=".doc,.docx,.pdf,.png,.jpg,.jpeg,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf,image/*"
+              accept=".doc,.docx,.pdf,.png,.jpg,.jpeg,.webp,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf,image/*"
               className="hidden"
               onChange={handleFileUpload}
               disabled={isUploading}
@@ -767,12 +963,12 @@ export const TataTertibView: React.FC<TataTertibViewProps> = ({
         </div>
       </div>
 
-      {/* Kotak Area Drag & Drop Dokumen */}
+      {/* Kotak Area Drag & Drop Dokumen dengan Real-Time Attachment Preview */}
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={`relative border-2 border-dashed rounded-2xl p-5 sm:p-6 transition-all duration-300 flex flex-col items-center justify-center text-center ${
+        className={`relative border-2 border-dashed rounded-2xl p-4 sm:p-6 transition-all duration-300 flex flex-col items-center justify-center text-center ${
           isDraggingOver
             ? 'border-amber-400 bg-amber-400/10 scale-[1.01] shadow-2xl shadow-amber-500/20'
             : uploadDraft
@@ -781,32 +977,54 @@ export const TataTertibView: React.FC<TataTertibViewProps> = ({
         }`}
       >
         {uploadDraft ? (
-          /* File Langsung Terlampir di Dalam Kotak Drag & Drop */
-          <div className="w-full max-w-xl bg-slate-950/90 border border-emerald-500/40 rounded-2xl p-5 shadow-2xl space-y-4 animate-fade-in text-left">
+          /* File Langsung Terlampir & Ditampilkan Real-Time di Dalam Kotak Drag & Drop */
+          <div className="w-full bg-slate-950/90 border border-emerald-500/40 rounded-2xl p-4 sm:p-5 shadow-2xl space-y-4 animate-fade-in text-left">
             <div className="flex items-center justify-between gap-3 border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2.5">
                 <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center shrink-0">
                   <CheckCircle2 className="w-6 h-6 text-emerald-400" />
                 </div>
                 <div>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
-                    File Terlampir
-                  </span>
-                  <h4 className="text-sm font-black text-white mt-0.5 truncate max-w-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30 flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" />
+                      <span>Terlampir Real-Time</span>
+                    </span>
+                    {getFileBadge(uploadDraft.fileName)}
+                  </div>
+                  <h4 className="text-sm font-black text-white mt-1 truncate max-w-sm sm:max-w-md">
                     {uploadDraft.fileName}
                   </h4>
                 </div>
               </div>
 
               <div className="flex items-center gap-2">
-                {getFileBadge(uploadDraft.fileName)}
                 <span className="text-xs font-bold text-slate-400 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800">
                   {uploadDraft.fileSizeFormatted}
                 </span>
               </div>
             </div>
 
-            <form onSubmit={handleConfirmSaveUpload} className="space-y-3">
+            {/* LIVE ATTACHMENT PREVIEWER WINDOW */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-300 px-1">
+                <span className="flex items-center gap-1.5 text-amber-300">
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Pratinjau Langsung (Live Render):</span>
+                </span>
+                <span className="text-[11px] text-slate-400">Pastikan tata letak dokumen sudah sesuai</span>
+              </div>
+              <div className="rounded-xl border border-slate-800 overflow-hidden shadow-inner bg-slate-950">
+                <LiveDocumentRenderer
+                  fileData={uploadDraft.fileData}
+                  fileName={uploadDraft.fileName}
+                  extractedText={uploadDraft.extractedText}
+                  isDraft={true}
+                />
+              </div>
+            </div>
+
+            <form onSubmit={handleConfirmSaveUpload} className="space-y-3 pt-2">
               <div>
                 <label className="block text-xs font-bold text-slate-300 mb-1">
                   Judul Dokumen Tata Tertib:
@@ -816,7 +1034,7 @@ export const TataTertibView: React.FC<TataTertibViewProps> = ({
                   required
                   value={uploadFileNameInput}
                   onChange={(e) => setUploadFileNameInput(e.target.value)}
-                  placeholder="Masukkan judul dokumen..."
+                  placeholder="Masukkan judul dokumen tata tertib..."
                   className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white font-semibold text-xs focus:outline-none focus:border-amber-400"
                 />
               </div>
@@ -829,13 +1047,13 @@ export const TataTertibView: React.FC<TataTertibViewProps> = ({
                     setUploadFileNameInput('');
                     if (fileInputRef.current) fileInputRef.current.value = '';
                   }}
-                  className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors"
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors"
                 >
                   Batal / Ganti File
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shadow-lg flex items-center gap-1.5 transition-colors"
+                  className="px-5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shadow-lg flex items-center gap-1.5 transition-all active:scale-95"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   <span>Simpan & Tampilkan Dokumen</span>
@@ -845,12 +1063,17 @@ export const TataTertibView: React.FC<TataTertibViewProps> = ({
           </div>
         ) : (
           /* Tampilan Kotak Area Drag & Drop Saat Kosong */
-          <div className="flex flex-col items-center justify-center space-y-2.5 cursor-pointer py-2" onClick={() => fileInputRef.current?.click()}>
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${
-              isDraggingOver
-                ? 'bg-amber-400 text-slate-950 scale-110 shadow-lg'
-                : 'bg-blue-500/10 border border-blue-500/20 text-blue-400'
-            }`}>
+          <div
+            className="flex flex-col items-center justify-center space-y-2.5 cursor-pointer py-4"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <div
+              className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${
+                isDraggingOver
+                  ? 'bg-amber-400 text-slate-950 scale-110 shadow-lg'
+                  : 'bg-blue-500/10 border border-blue-500/20 text-blue-400'
+              }`}
+            >
               <Upload className="w-6 h-6 animate-bounce" />
             </div>
 
@@ -869,7 +1092,10 @@ export const TataTertibView: React.FC<TataTertibViewProps> = ({
       {/* Dokumen Tab Selector jika ada lebih dari 1 dokumen */}
       {tataTertibList.length > 1 && (
         <div className="flex items-center gap-2 overflow-x-auto pb-1 border-b border-slate-800">
-          <span className="text-xs font-bold text-slate-400 shrink-0 mr-1">Pilih Dokumen:</span>
+          <span className="text-xs font-bold text-slate-400 shrink-0 mr-1 flex items-center gap-1">
+            <Layers className="w-3.5 h-3.5" />
+            <span>Pilih Dokumen:</span>
+          </span>
           {tataTertibList.map((doc) => (
             <button
               key={doc.id}
@@ -888,7 +1114,7 @@ export const TataTertibView: React.FC<TataTertibViewProps> = ({
         </div>
       )}
 
-      {/* SATU-SATUNYA TEMPAT PREVIEW DOKUMEN TATIB (Unified Single Previewer) */}
+      {/* SATU-SATUNYA TEMPAT PREVIEW UTAMA DOKUMEN TATIB */}
       <div id="doc-preview-single" className="space-y-4">
         {!activeDoc ? (
           <div className="flex flex-col items-center justify-center py-12 px-4 bg-slate-900/50 rounded-2xl border border-dashed border-slate-700">
@@ -897,7 +1123,7 @@ export const TataTertibView: React.FC<TataTertibViewProps> = ({
             </div>
             <h3 className="text-slate-300 font-bold mb-1">Belum ada dokumen tata tertib</h3>
             <p className="text-slate-500 text-sm text-center max-w-md">
-              Silakan unggah file Tata Tertib sekolah (Word, PDF, atau Gambar Scan Kop & TTD Stempel Kepsek). Dokumen akan langsung ditampilkan secara penuh di bawah ini.
+              Silakan unggah file Tata Tertib sekolah (Word, PDF, atau Gambar Scan Kop & TTD Stempel Kepsek). Dokumen akan langsung dilampirkan dan ditampilkan secara penuh.
             </p>
           </div>
         ) : (
@@ -906,11 +1132,7 @@ export const TataTertibView: React.FC<TataTertibViewProps> = ({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-800">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center shrink-0">
-                  {isImg ? (
-                    <ImageIcon className="w-5 h-5 text-amber-400" />
-                  ) : (
-                    <FileText className="w-5 h-5 text-blue-400" />
-                  )}
+                  <FileText className="w-5 h-5 text-blue-400" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
@@ -933,7 +1155,7 @@ export const TataTertibView: React.FC<TataTertibViewProps> = ({
                 <button
                   type="button"
                   onClick={() => handleDownload(activeDoc)}
-                  className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1.5 shadow transition-all"
+                  className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1.5 shadow transition-all active:scale-95"
                 >
                   <Download className="w-4 h-4" />
                   <span>Unduh File</span>
@@ -957,35 +1179,14 @@ export const TataTertibView: React.FC<TataTertibViewProps> = ({
               </div>
             </div>
 
-            {/* Direct Inline View Container */}
+            {/* Direct Full Inline View Container */}
             <div className="w-full bg-slate-950 rounded-xl p-2 sm:p-4 border border-slate-800 flex flex-col items-center justify-center min-h-[350px]">
-              {isImg ? (
-                <ImageViewer fileData={activeDoc.fileData} fileName={activeDoc.fileName} />
-              ) : isPdf ? (
-                <PdfViewer
-                  fileData={activeDoc.fileData}
-                  fileName={activeDoc.fileName}
-                  extractedText={activeDoc.extractedText}
-                  height="750px"
-                />
-              ) : isWord ? (
-                <WordViewer
-                  fileData={activeDoc.fileData}
-                  fileName={activeDoc.fileName}
-                  extractedText={activeDoc.extractedText}
-                />
-              ) : activeDoc.extractedText ? (
-                <DocumentTextReader title={activeDoc.fileName} text={activeDoc.extractedText} />
-              ) : (
-                <div className="w-full bg-white text-slate-950 rounded-xl p-4 sm:p-6 shadow-2xl border-2 border-slate-300 flex flex-col items-center">
-                  <h4 className="text-base font-extrabold text-slate-950 mb-3 w-full border-b pb-2">{activeDoc.fileName}</h4>
-                  <iframe
-                    src={activeDoc.fileData}
-                    title={activeDoc.fileName}
-                    className="w-full h-[650px] rounded-lg border border-slate-300 bg-slate-100"
-                  />
-                </div>
-              )}
+              <LiveDocumentRenderer
+                fileData={activeDoc.fileData}
+                fileName={activeDoc.fileName}
+                extractedText={activeDoc.extractedText}
+                isDraft={false}
+              />
             </div>
           </div>
         )}
@@ -1031,7 +1232,7 @@ export const TataTertibView: React.FC<TataTertibViewProps> = ({
                       type="file"
                       ref={editFileInputRef}
                       onChange={handleReplaceFile}
-                      accept=".doc,.docx,.pdf,.png,.jpg,.jpeg,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf,image/*"
+                      accept=".doc,.docx,.pdf,.png,.jpg,.jpeg,.webp,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf,image/*"
                       className="hidden"
                     />
                   </label>
@@ -1061,7 +1262,7 @@ export const TataTertibView: React.FC<TataTertibViewProps> = ({
         </div>
       )}
 
-      {/* Custom Modal Confirmation for Deleting Document */}
+      {/* Modal Confirmation for Deleting Document */}
       {docToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
           <div className="bg-slate-900 border border-slate-800 text-slate-100 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
@@ -1105,4 +1306,3 @@ export const TataTertibView: React.FC<TataTertibViewProps> = ({
     </div>
   );
 };
-

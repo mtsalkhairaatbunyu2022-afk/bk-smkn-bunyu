@@ -232,7 +232,15 @@ export default function App() {
 
   // Tata Tertib Handlers
   const handleAddTataTertib = async (item: TataTertibDocument) => {
-    setTataTertibList(prev => [item, ...prev]);
+    setTataTertibList(prev => {
+      const idx = prev.findIndex(x => x.id === item.id);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = item;
+        return copy;
+      }
+      return [item, ...prev];
+    });
     await saveTataTertib(item);
     await loadAllData();
   };
