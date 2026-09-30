@@ -14,7 +14,8 @@ import {
   Eye,
   Layers,
   Sparkles,
-  Maximize2
+  BookOpen,
+  Printer
 } from 'lucide-react';
 import * as docx from 'docx-preview';
 import mammoth from 'mammoth';
@@ -96,16 +97,35 @@ function getFileType(fileName: string, fileData: string = ''): 'pdf' | 'word' | 
   return 'text';
 }
 
-const DocumentTextReader: React.FC<{ title?: string; text: string }> = ({ title, text }) => {
+const DocumentTextReader: React.FC<{ title?: string; text: string; isDraft?: boolean }> = ({ title, text, isDraft = false }) => {
   return (
-    <div className="w-full bg-slate-950 text-slate-100 rounded-xl p-3 sm:p-5 border border-slate-800 shadow-2xl font-sans">
+    <div className={`w-full bg-slate-950 text-slate-100 rounded-xl p-2 sm:p-4 border border-slate-800 shadow-2xl font-sans ${isDraft ? 'max-h-[400px] overflow-y-auto' : ''}`}>
       <div className="max-w-4xl mx-auto bg-white text-slate-950 rounded-xl p-6 sm:p-10 shadow-2xl border-2 border-slate-300">
+        {/* Kop Surat Header Resmi SMKN 1 Bunyu */}
+        <div className="border-b-4 border-double border-slate-900 pb-4 mb-6 text-center">
+          <h3 className="text-xs sm:text-sm font-extrabold uppercase tracking-widest text-slate-800">
+            Pemerintah Provinsi Kalimantan Utara
+          </h3>
+          <h3 className="text-xs sm:text-sm font-extrabold uppercase tracking-widest text-slate-800">
+            Dinas Pendidikan dan Kebudayaan
+          </h3>
+          <h2 className="text-base sm:text-xl font-black uppercase text-slate-950 tracking-tight mt-1">
+            SMK NEGERI 1 BUNYU
+          </h2>
+          <p className="text-[11px] text-slate-600 font-medium mt-0.5">
+            Jl. Dewa Ruci, Desa Bunyu Selatan, Kec. Bunyu, Kab. Bulungan, Kalimantan Utara | Email: smkn1bunyu@gmail.com
+          </p>
+        </div>
+
         {title && (
-          <div className="border-b-2 border-slate-900 pb-4 mb-6 text-center">
-            <h2 className="text-lg sm:text-2xl font-black text-slate-950 tracking-wide uppercase">{title}</h2>
+          <div className="pb-4 mb-6 text-center">
+            <h2 className="text-base sm:text-lg font-black text-slate-950 tracking-wide uppercase underline">
+              {title.replace(/\.[^/.]+$/, "")}
+            </h2>
           </div>
         )}
-        <div className="prose max-w-none text-slate-950 whitespace-pre-wrap font-sans text-sm sm:text-base leading-relaxed space-y-4 font-semibold">
+
+        <div className="prose max-w-none text-slate-950 whitespace-pre-wrap font-sans text-xs sm:text-sm leading-relaxed space-y-3 font-medium">
           {text}
         </div>
       </div>
@@ -168,7 +188,7 @@ const WordViewer: React.FC<{ fileData: string; fileName: string; extractedText?:
               return;
             }
           } catch (renderErr) {
-            console.warn('docx.renderAsync gagal, beralih ke mammoth HTML fallback:', renderErr);
+            console.warn('docx.renderAsync dialihkan ke mammoth HTML fallback:', renderErr);
           }
         }
 
@@ -198,17 +218,17 @@ const WordViewer: React.FC<{ fileData: string; fileName: string; extractedText?:
   }, [fileData]);
 
   if (error && extractedText) {
-    return <DocumentTextReader title={fileName} text={extractedText} />;
+    return <DocumentTextReader title={fileName} text={extractedText} isDraft={isDraft} />;
   }
 
   return (
-    <div className={`w-full flex flex-col items-center bg-slate-950 rounded-xl border border-slate-800 overflow-hidden shadow-2xl ${isDraft ? 'max-h-[450px]' : ''}`}>
+    <div className={`w-full flex flex-col items-center bg-slate-950 rounded-xl border border-slate-800 overflow-hidden shadow-2xl ${isDraft ? 'max-h-[480px]' : ''}`}>
       {/* Header Info Bar */}
       <div className="w-full bg-slate-900 border-b border-slate-800 p-3 flex flex-wrap items-center justify-between gap-3 text-slate-200">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-bold px-3 py-1 bg-blue-500/10 text-blue-300 border border-blue-500/20 rounded-lg flex items-center gap-1.5">
             <FileText className="w-3.5 h-3.5" />
-            <span>Format Microsoft Word (Render 1:1 Presisi Asli)</span>
+            <span>Format Microsoft Word (Render Halaman 1:1)</span>
           </span>
           {pageCount && (
             <span className="text-xs font-black px-2.5 py-1 bg-amber-400 text-slate-950 rounded-lg">
@@ -221,12 +241,12 @@ const WordViewer: React.FC<{ fileData: string; fileName: string; extractedText?:
       {loading && (
         <div className="py-12 flex flex-col items-center justify-center space-y-3 bg-slate-950 w-full">
           <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-slate-300 text-xs font-bold">Memuat & Menyesuaikan Tata Letak Word Real-Time...</p>
+          <p className="text-slate-300 text-xs font-bold">Memuat & Menampilkan Lembaran Word Real-Time...</p>
         </div>
       )}
 
       {mammothHtml && !loading && (
-        <div className={`w-full overflow-y-auto p-4 sm:p-8 bg-slate-900/60 ${isDraft ? 'max-h-[360px]' : 'max-h-[85vh]'}`}>
+        <div className={`w-full overflow-y-auto p-4 sm:p-8 bg-slate-900/60 ${isDraft ? 'max-h-[400px]' : 'max-h-[85vh]'}`}>
           <div
             className="max-w-4xl mx-auto bg-white text-slate-950 rounded-xl p-6 sm:p-10 shadow-2xl border-2 border-slate-300 prose max-w-none"
             dangerouslySetInnerHTML={{ __html: mammothHtml }}
@@ -238,7 +258,7 @@ const WordViewer: React.FC<{ fileData: string; fileName: string; extractedText?:
         ref={containerRef}
         className={`w-full overflow-x-auto overflow-y-auto p-4 sm:p-8 bg-slate-900/60 flex flex-col items-center ${
           mammothHtml ? 'hidden' : ''
-        } ${isDraft ? 'max-h-[360px]' : 'max-h-[85vh]'}`}
+        } ${isDraft ? 'max-h-[400px]' : 'max-h-[85vh]'}`}
       />
 
       <style>{`
@@ -280,7 +300,7 @@ const ImageViewer: React.FC<{ fileData: string; fileName: string; isDraft?: bool
   const [rotation, setRotation] = useState<number>(0);
 
   return (
-    <div className={`w-full flex flex-col items-center bg-slate-950 rounded-xl border border-slate-800 overflow-hidden shadow-2xl ${isDraft ? 'max-h-[450px]' : ''}`}>
+    <div className={`w-full flex flex-col items-center bg-slate-950 rounded-xl border border-slate-800 overflow-hidden shadow-2xl ${isDraft ? 'max-h-[480px]' : ''}`}>
       <div className="w-full bg-slate-900 border-b border-slate-800 p-3 flex flex-wrap items-center justify-between gap-3 text-slate-200">
         <span className="text-xs font-bold px-3 py-1 bg-amber-500/10 text-amber-300 border border-amber-500/20 rounded-lg flex items-center gap-1.5">
           <ImageIcon className="w-3.5 h-3.5" />
@@ -324,7 +344,7 @@ const ImageViewer: React.FC<{ fileData: string; fileName: string; isDraft?: bool
           </button>
         </div>
       </div>
-      <div className={`w-full overflow-auto p-4 flex items-center justify-center bg-slate-900/60 ${isDraft ? 'max-h-[360px]' : 'max-h-[85vh]'}`}>
+      <div className={`w-full overflow-auto p-4 flex items-center justify-center bg-slate-900/60 ${isDraft ? 'max-h-[400px]' : 'max-h-[85vh]'}`}>
         <img
           src={fileData}
           alt={fileName}
@@ -389,14 +409,14 @@ const PdfPageCanvas: React.FC<{
   }, [pdfDoc, pageNumber, scale]);
 
   return (
-    <div className="flex flex-col items-center my-2 w-full max-w-4xl touch-pan-y">
+    <div className="flex flex-col items-center my-3 w-full max-w-4xl touch-pan-y">
       <div className="text-xs font-black text-amber-300 bg-slate-900 border border-amber-400/30 px-3.5 py-1 rounded-full mb-2 shadow-md">
         Halaman {pageNumber}
       </div>
       <canvas
         ref={canvasRef}
         style={{ imageRendering: '-webkit-optimize-contrast' }}
-        className="shadow-2xl rounded-md bg-white max-w-full border border-slate-300"
+        className="shadow-2xl rounded-lg bg-white max-w-full border-2 border-slate-300"
       />
     </div>
   );
@@ -411,24 +431,25 @@ const PdfViewer: React.FC<{
 }> = ({ fileData, fileName, height = '750px', extractedText, isDraft = false }) => {
   const [numPages, setNumPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const [showAllPages, setShowAllPages] = useState<boolean>(!isDraft);
+  const [showAllPages, setShowAllPages] = useState<boolean>(true);
   const [scale, setScale] = useState<number>(isDraft ? 1.0 : 1.3);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<boolean>(false);
-  const [viewMode, setViewMode] = useState<'canvas' | 'native'>('canvas');
-  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'canvas' | 'text'>('canvas');
   const pdfDocRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
 
   useEffect(() => {
     let isMounted = true;
-    const url = getBlobUrlFromDataUrl(fileData);
-    if (url) setBlobUrl(url);
 
     async function loadPdf() {
       try {
         setLoading(true);
         setError(false);
         const base64 = fileData.split(',')[1] || fileData;
+        if (!base64 || base64.trim().length === 0) {
+          throw new Error('Data PDF kosong');
+        }
+
         const binaryStr = atob(base64);
         const bytes = new Uint8Array(binaryStr.length);
         for (let i = 0; i < binaryStr.length; i++) {
@@ -447,9 +468,10 @@ const PdfViewer: React.FC<{
         setCurrentPage(1);
         setLoading(false);
       } catch (err) {
-        console.warn('PDF.js canvas renderer error, switching to native fallback mode:', err);
+        console.warn('PDF.js canvas renderer fallback to structured text reader:', err);
         if (isMounted) {
-          setViewMode('native');
+          setError(true);
+          setViewMode('text');
           setLoading(false);
         }
       }
@@ -461,14 +483,28 @@ const PdfViewer: React.FC<{
     };
   }, [fileData]);
 
-  const handleOpenNative = () => {
-    if (blobUrl) {
-      window.open(blobUrl, '_blank');
-    }
-  };
+  if (viewMode === 'text' || (error && extractedText)) {
+    return (
+      <div className="w-full space-y-3">
+        {numPages > 0 && (
+          <div className="flex justify-end p-2">
+            <button
+              type="button"
+              onClick={() => setViewMode('canvas')}
+              className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1.5"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>Beralih ke Tampilan Lembaran Canvas</span>
+            </button>
+          </div>
+        )}
+        <DocumentTextReader title={fileName} text={extractedText || 'Isi dokumen sedang diproses.'} isDraft={isDraft} />
+      </div>
+    );
+  }
 
   return (
-    <div className={`w-full flex flex-col items-center bg-slate-950 rounded-xl border border-slate-800 overflow-hidden shadow-2xl ${isDraft ? 'max-h-[450px]' : ''}`}>
+    <div className={`w-full flex flex-col items-center bg-slate-950 rounded-xl border border-slate-800 overflow-hidden shadow-2xl ${isDraft ? 'max-h-[480px]' : ''}`}>
       {/* Controls Header */}
       <div className="w-full bg-slate-900 border-b border-slate-800 p-3 flex flex-wrap items-center justify-between gap-3 text-slate-200">
         <div className="flex items-center gap-2 flex-wrap">
@@ -477,102 +513,74 @@ const PdfViewer: React.FC<{
             <span>Mode Lembaran PDF 100% Offline</span>
           </span>
 
-          <div className="flex items-center gap-1 bg-slate-950 p-0.5 rounded-lg border border-slate-800">
+          {extractedText && (
             <button
               type="button"
-              onClick={() => setViewMode('canvas')}
-              className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all ${
-                viewMode === 'canvas'
-                  ? 'bg-amber-400 text-slate-950 shadow'
-                  : 'text-slate-400 hover:text-white'
-              }`}
+              onClick={() => setViewMode('text')}
+              className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold transition-all flex items-center gap-1 shadow border border-slate-700"
             >
-              Canvas 1:1
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('native')}
-              className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all ${
-                viewMode === 'native'
-                  ? 'bg-amber-400 text-slate-950 shadow'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Viewer Tersemat
-            </button>
-          </div>
-
-          {blobUrl && (
-            <button
-              type="button"
-              onClick={handleOpenNative}
-              className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all flex items-center gap-1 shadow"
-              title="Buka dokumen PDF di tab / aplikasi bawaan"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>Buka Bawaan</span>
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>Tampilan Teks Resmi</span>
             </button>
           )}
         </div>
 
         {/* Page & Zoom Controls for Canvas Mode */}
-        {viewMode === 'canvas' && (
-          <div className="flex items-center gap-2 flex-wrap">
-            {numPages > 1 && (
-              <div className="flex items-center gap-1 bg-slate-950 px-2 py-1 rounded-lg border border-slate-800 text-xs">
-                <button
-                  type="button"
-                  disabled={currentPage <= 1 || showAllPages}
-                  onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
-                  className="px-2 py-0.5 rounded bg-slate-800 disabled:opacity-40 text-amber-300 font-bold"
-                >
-                  &lt;
-                </button>
-                <span className="text-slate-300 font-bold px-1.5">
-                  {showAllPages ? `Semua (${numPages})` : `${currentPage} / ${numPages}`}
-                </span>
-                <button
-                  type="button"
-                  disabled={currentPage >= numPages || showAllPages}
-                  onClick={() => setCurrentPage(p => Math.min(p + 1, numPages))}
-                  className="px-2 py-0.5 rounded bg-slate-800 disabled:opacity-40 text-amber-300 font-bold"
-                >
-                  &gt;
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setShowAllPages(s => !s)}
-                  className="ml-1 px-2 py-0.5 rounded bg-slate-800 text-[10px] text-amber-400 font-bold hover:bg-slate-700"
-                >
-                  {showAllPages ? 'Per Halaman' : 'Lihat Semua'}
-                </button>
-              </div>
-            )}
-
-            <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          {numPages > 1 && (
+            <div className="flex items-center gap-1 bg-slate-950 px-2 py-1 rounded-lg border border-slate-800 text-xs">
               <button
                 type="button"
-                onClick={() => setScale(s => Math.max(s - 0.2, 0.6))}
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white transition-colors"
-                title="Perkecil Tampilan"
+                disabled={currentPage <= 1 || showAllPages}
+                onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                className="px-2 py-0.5 rounded bg-slate-800 disabled:opacity-40 text-amber-300 font-bold"
               >
-                <ZoomOut className="w-4 h-4" />
+                &lt;
               </button>
-              <span className="text-xs font-semibold text-slate-400 min-w-[35px] text-center">
-                {Math.round(scale * 100)}%
+              <span className="text-slate-300 font-bold px-1.5">
+                {showAllPages ? `Semua (${numPages})` : `${currentPage} / ${numPages}`}
               </span>
               <button
                 type="button"
-                onClick={() => setScale(s => Math.min(s + 0.2, 2.5))}
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white transition-colors"
-                title="Perbesar Tampilan"
+                disabled={currentPage >= numPages || showAllPages}
+                onClick={() => setCurrentPage(p => Math.min(p + 1, numPages))}
+                className="px-2 py-0.5 rounded bg-slate-800 disabled:opacity-40 text-amber-300 font-bold"
               >
-                <ZoomIn className="w-4 h-4" />
+                &gt;
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowAllPages(s => !s)}
+                className="ml-1 px-2 py-0.5 rounded bg-slate-800 text-[10px] text-amber-400 font-bold hover:bg-slate-700"
+              >
+                {showAllPages ? 'Per Halaman' : 'Lihat Semua'}
               </button>
             </div>
+          )}
+
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setScale(s => Math.max(s - 0.2, 0.6))}
+              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white transition-colors"
+              title="Perkecil Tampilan"
+            >
+              <ZoomOut className="w-4 h-4" />
+            </button>
+            <span className="text-xs font-semibold text-slate-400 min-w-[35px] text-center">
+              {Math.round(scale * 100)}%
+            </span>
+            <button
+              type="button"
+              onClick={() => setScale(s => Math.min(s + 0.2, 2.5))}
+              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white transition-colors"
+              title="Perbesar Tampilan"
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
           </div>
-        )}
+        </div>
       </div>
 
       {loading && (
@@ -582,13 +590,13 @@ const PdfViewer: React.FC<{
         </div>
       )}
 
-      {/* Mode 1: Canvas Render */}
-      {!loading && viewMode === 'canvas' && pdfDocRef.current && (
+      {/* Canvas Render */}
+      {!loading && pdfDocRef.current && (
         <div
           className={`w-full overflow-y-auto overflow-x-auto p-3 sm:p-6 flex flex-col items-center bg-slate-900/60 space-y-6 touch-pan-y ${
-            isDraft ? 'max-h-[360px]' : ''
+            isDraft ? 'max-h-[400px]' : ''
           }`}
-          style={{ maxHeight: isDraft ? '360px' : height, WebkitOverflowScrolling: 'touch' }}
+          style={{ maxHeight: isDraft ? '400px' : height, WebkitOverflowScrolling: 'touch' }}
         >
           {showAllPages ? (
             Array.from({ length: numPages }, (_, index) => (
@@ -609,23 +617,6 @@ const PdfViewer: React.FC<{
           )}
         </div>
       )}
-
-      {/* Mode 2: Native Embedded PDF Object/iFrame Fallback */}
-      {(!loading && viewMode === 'native') || error ? (
-        <div className={`w-full p-2 bg-slate-900/80 flex flex-col items-center ${isDraft ? 'h-[360px]' : 'h-[750px]'}`}>
-          <object
-            data={blobUrl || fileData}
-            type="application/pdf"
-            className="w-full h-full rounded-lg border border-slate-700 shadow-xl bg-white"
-          >
-            <iframe
-              src={blobUrl || fileData}
-              title={fileName}
-              className="w-full h-full rounded-lg border border-slate-700 shadow-xl bg-white"
-            />
-          </object>
-        </div>
-      ) : null}
     </div>
   );
 };
@@ -666,17 +657,15 @@ export const LiveDocumentRenderer: React.FC<{
   }
 
   if (extractedText) {
-    return <DocumentTextReader title={fileName} text={extractedText} />;
+    return <DocumentTextReader title={fileName} text={extractedText} isDraft={isDraft} />;
   }
 
   return (
     <div className="w-full bg-white text-slate-950 rounded-xl p-4 sm:p-6 shadow-2xl border-2 border-slate-300 flex flex-col items-center">
       <h4 className="text-base font-extrabold text-slate-950 mb-3 w-full border-b pb-2">{fileName}</h4>
-      <iframe
-        src={fileData}
-        title={fileName}
-        className="w-full h-[550px] rounded-lg border border-slate-300 bg-slate-100"
-      />
+      <div className="text-sm font-semibold text-slate-700 py-10">
+        Dokumen siap dilampirkan. Klik Simpan & Tampilkan Dokumen di bawah.
+      </div>
     </div>
   );
 };
@@ -794,41 +783,68 @@ export const TataTertibView: React.FC<TataTertibViewProps> = ({
 
     setIsUploading(true);
 
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const fileData = event.target?.result as string;
-      const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2) + ' MB';
+    try {
+      const arrayBuffer = await file.arrayBuffer();
       let extractedText: string | undefined = undefined;
 
-      // Extract text in background for Word files
+      // 1. PDF Text Extraction
+      if (nameLower.endsWith('.pdf') || file.type.includes('pdf')) {
+        try {
+          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer, disableFontFace: true }).promise;
+          let fullText = '';
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const textContent = await page.getTextContent();
+            const pageText = textContent.items.map((item: any) => item.str).join(' ');
+            if (pageText.trim()) {
+              fullText += `\n--- HALAMAN ${i} ---\n` + pageText + '\n';
+            }
+          }
+          if (fullText.trim()) {
+            extractedText = fullText.trim();
+          }
+        } catch (e) {
+          console.warn('PDF text extraction fallback:', e);
+        }
+      }
+
+      // 2. Word Text Extraction
       if (nameLower.endsWith('.docx') || nameLower.endsWith('.doc')) {
         try {
-          const arrayBuffer = await file.arrayBuffer();
           const raw = await mammoth.extractRawText({ arrayBuffer });
           if (raw.value) {
             extractedText = raw.value;
           }
         } catch (e) {
-          console.warn('Text extraction skipped:', e);
+          console.warn('Word text extraction skipped:', e);
         }
       }
 
-      setUploadDraft({
-        fileName: file.name,
-        fileData: fileData,
-        fileSizeFormatted: fileSizeMB,
-        extractedText
-      });
-      setUploadFileNameInput(file.name);
-      setIsUploading(false);
-    };
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const fileData = event.target?.result as string;
+        const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2) + ' MB';
 
-    reader.onerror = () => {
-      alert('Gagal membaca file.');
-      setIsUploading(false);
-    };
+        setUploadDraft({
+          fileName: file.name,
+          fileData: fileData,
+          fileSizeFormatted: fileSizeMB,
+          extractedText
+        });
+        setUploadFileNameInput(file.name);
+        setIsUploading(false);
+      };
 
-    reader.readAsDataURL(file);
+      reader.onerror = () => {
+        alert('Gagal membaca file.');
+        setIsUploading(false);
+      };
+
+      reader.readAsDataURL(file);
+    } catch (err) {
+      console.warn('Process file error:', err);
+      setIsUploading(false);
+    }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1010,9 +1026,9 @@ export const TataTertibView: React.FC<TataTertibViewProps> = ({
               <div className="flex items-center justify-between text-xs font-bold text-slate-300 px-1">
                 <span className="flex items-center gap-1.5 text-amber-300">
                   <Eye className="w-3.5 h-3.5" />
-                  <span>Pratinjau Langsung (Live Render):</span>
+                  <span>Pratinjau Langsung Lembaran Dokumen:</span>
                 </span>
-                <span className="text-[11px] text-slate-400">Pastikan tata letak dokumen sudah sesuai</span>
+                <span className="text-[11px] text-slate-400">Dokumen akan langsung ditampilkan seperti ini di bawah</span>
               </div>
               <div className="rounded-xl border border-slate-800 overflow-hidden shadow-inner bg-slate-950">
                 <LiveDocumentRenderer
@@ -1114,7 +1130,7 @@ export const TataTertibView: React.FC<TataTertibViewProps> = ({
         </div>
       )}
 
-      {/* SATU-SATUNYA TEMPAT PREVIEW UTAMA DOKUMEN TATIB */}
+      {/* SATU-SATUNYA TEMPAT PREVIEW UTAMA DOKUMEN TATIB (Langsung Ditampilkan di Halaman Aplikasi) */}
       <div id="doc-preview-single" className="space-y-4">
         {!activeDoc ? (
           <div className="flex flex-col items-center justify-center py-12 px-4 bg-slate-900/50 rounded-2xl border border-dashed border-slate-700">
@@ -1123,7 +1139,7 @@ export const TataTertibView: React.FC<TataTertibViewProps> = ({
             </div>
             <h3 className="text-slate-300 font-bold mb-1">Belum ada dokumen tata tertib</h3>
             <p className="text-slate-500 text-sm text-center max-w-md">
-              Silakan unggah file Tata Tertib sekolah (Word, PDF, atau Gambar Scan Kop & TTD Stempel Kepsek). Dokumen akan langsung dilampirkan dan ditampilkan secara penuh.
+              Silakan unggah file Tata Tertib sekolah (Word, PDF, atau Gambar Scan Kop & TTD Stempel Kepsek). Dokumen akan langsung dilampirkan dan ditampilkan secara penuh di sini.
             </p>
           </div>
         ) : (
