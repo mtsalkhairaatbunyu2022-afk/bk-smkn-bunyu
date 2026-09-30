@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Database, Download, Upload, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { exportDatabaseJSON, importDatabaseJSON } from '../db/indexedDB';
+import { useConfirm } from '../context/ConfirmContext';
 
 interface BackupRestoreModalProps {
   isOpen: boolean;
@@ -13,11 +14,20 @@ export const BackupRestoreModal: React.FC<BackupRestoreModalProps> = ({
   onClose,
   onRefreshData
 }) => {
+  const { confirmAction } = useConfirm();
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   if (!isOpen) return null;
 
   const handleExportBackup = async () => {
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Unduh Backup Database',
+      message: 'Apakah Anda yakin ingin mengunduh salinan backup seluruh database dalam format JSON?',
+      type: 'download',
+      confirmText: 'Ya, Unduh Backup'
+    });
+    if (!confirmed) return;
+
     try {
       const data = await exportDatabaseJSON();
       const jsonString = JSON.stringify(data, null, 2);
@@ -37,9 +47,20 @@ export const BackupRestoreModal: React.FC<BackupRestoreModalProps> = ({
     }
   };
 
-  const handleRestoreFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleRestoreFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Pemulihan (Restore) Database',
+      message: `Apakah Anda yakin ingin memulihkan database dari file backup "${file.name}"? Data yang ada akan diperbarui.`,
+      type: 'upload',
+      confirmText: 'Ya, Pulihkan'
+    });
+    if (!confirmed) {
+      e.target.value = '';
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = async (event) => {
@@ -58,6 +79,7 @@ export const BackupRestoreModal: React.FC<BackupRestoreModalProps> = ({
       }
     };
     reader.readAsText(file);
+    e.target.value = '';
   };
 
   return (

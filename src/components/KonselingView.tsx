@@ -1,10 +1,12 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { HeartHandshake, Plus, Edit2, Trash2, Printer, Search, X, Check, Camera, Image as ImageIcon, Eye, Download, FileText, FileSpreadsheet, Upload } from 'lucide-react';
 import { Siswa, Konseling, StatusKonseling } from '../types';
-import { printKonselingPDF } from '../utils/pdfUtils';
+import { printKonselingPDF, exportKonselingListPDF } from '../utils/pdfUtils';
 import { exportKonselingExcel, downloadTemplateExcelSiswa, parseExcelFile } from '../utils/excelUtils';
 import { exportKonselingWord } from '../utils/wordUtils';
 import { saveSiswaBatch } from '../db/indexedDB';
+import { useConfirm } from '../context/ConfirmContext';
+import { MultiSelectDropdown } from './MultiSelectDropdown';
 
 interface KonselingViewProps {
   siswaList: Siswa[];
@@ -29,8 +31,9 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
   allowClasses,
   viewTitle
 }) => {
+  const { confirmAction } = useConfirm();
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [selectedStatusList, setSelectedStatusList] = useState<string[]>([]);
   const [monthFilter, setMonthFilter] = useState('');
 
   // Upload Data Siswa State
@@ -129,11 +132,13 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
       const matchSearch = (k.namaSiswa || '').toLowerCase().includes(search) ||
         (k.permasalahan || '').toLowerCase().includes(search) ||
         kKelas.includes(search);
-      const matchStatus = !statusFilter || k.statusPenyelesaian === statusFilter;
+      const matchStatus =
+        selectedStatusList.length === 0 ||
+        selectedStatusList.some(s => (k.statusPenyelesaian || '').toLowerCase().includes(s.toLowerCase()));
       const matchMonth = !monthFilter || (k.tanggal || '').startsWith(monthFilter);
       return matchKelasFilter && matchSearch && matchStatus && matchMonth;
     });
-  }, [konselingList, filterKelas, allowClasses, searchTerm, statusFilter, monthFilter]);
+  }, [konselingList, filterKelas, allowClasses, searchTerm, selectedStatusList, monthFilter]);
 
   const filteredSiswaList = useMemo(() => {
     const trimmedForm = (formKelas || '').trim().toLowerCase();
@@ -147,7 +152,7 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
     if (allowClasses && allowClasses.length > 0) {
       return siswaList.filter(s => allowClasses.some(c => (s.kelas || '').toLowerCase().includes((c || '').toLowerCase())));
     }
-    return siswaList;
+    return [];
   }, [siswaList, formKelas, filterKelas, allowClasses]);
 
   const handleSelectSiswa = (siswaId: string) => {
@@ -221,13 +226,20 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
   const handleConfirmSaveImport = async () => {
     if (pendingImportSiswa.length === 0) return;
 
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Unggah Data Siswa',
+      message: `Apakah Anda yakin ingin mengimpor ${pendingImportSiswa.length} data siswa ini ke database?`,
+      type: 'upload',
+      confirmText: 'Ya, Impor'
+    });
+    if (!confirmed) return;
+
     try {
       if (onAddSiswaBatch) {
         await onAddSiswaBatch(pendingImportSiswa);
       } else {
         await saveSiswaBatch(pendingImportSiswa);
       }
-      alert(`Berhasil menyimpan ${pendingImportSiswa.length} data siswa ke database!`);
       setIsImportConfirmOpen(false);
       setPendingImportSiswa([]);
       setUploadedFileName('');
@@ -250,7 +262,15 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
     setIsModalOpen(true);
   };
 
-  const handleOpenEditModal = (item: Konseling) => {
+  const handleOpenEditModal = async (item: Konseling) => {
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Edit Konseling',
+      message: `Apakah Anda yakin ingin mengedit catatan konseling ${item.namaSiswa}?`,
+      type: 'edit',
+      confirmText: 'Ya, Edit'
+    });
+    if (!confirmed) return;
+
     setEditingItem(item);
     setFormTanggal(item.tanggal);
     setFormSiswaId(item.siswaId);
@@ -264,9 +284,32 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
     setIsModalOpen(true);
   };
 
-  const handleSubmitForm = (e: React.FormEvent) => {
+  const handleDeleteItem = async (item: Konseling) => {
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Hapus Data Konseling',
+      message: `Apakah Anda yakin ingin menghapus data konseling ${item.namaSiswa} (${item.tanggal})?`,
+      type: 'delete',
+      confirmText: 'Ya, Hapus'
+    });
+    if (confirmed) {
+      onDeleteKonseling(item.id);
+    }
+  };
+
+  const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formNamaSiswa.trim() || !formPermasalahan.trim()) return;
+
+    const isEditing = !!editingItem;
+    const confirmed = await confirmAction({
+      title: isEditing ? 'Konfirmasi Simpan Edit Konseling' : 'Konfirmasi Simpan Sesi Konseling',
+      message: isEditing
+        ? `Apakah Anda yakin ingin menyimpan perubahan sesi konseling ${formNamaSiswa}?`
+        : `Apakah Anda yakin ingin menyimpan sesi konseling baru untuk ${formNamaSiswa}?`,
+      type: isEditing ? 'edit' : 'save',
+      confirmText: isEditing ? 'Ya, Simpan Edit' : 'Ya, Simpan'
+    });
+    if (!confirmed) return;
 
     if (editingItem) {
       onUpdateKonseling({
@@ -297,6 +340,72 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
     }
 
     setIsModalOpen(false);
+  };
+
+  const handleDownloadExcelClick = async () => {
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Unduh Excel',
+      message: 'Apakah Anda yakin ingin mengunduh laporan layanan bimbingan konseling (Format Excel)?',
+      type: 'download',
+      confirmText: 'Ya, Unduh Excel'
+    });
+    if (!confirmed) return;
+
+    const filterDesc = [
+      filterKelas ? `Kelas ${filterKelas}` : '',
+      monthFilter ? `Bulan ${monthFilter}` : '',
+      selectedStatusList.length > 0 ? `Status ${selectedStatusList.join(', ')}` : '',
+      searchTerm ? `Cari "${searchTerm}"` : ''
+    ].filter(Boolean).join(' | ');
+    exportKonselingExcel(filteredList, filterDesc || 'Semua');
+  };
+
+  const handleDownloadWordClick = async () => {
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Unduh Word',
+      message: 'Apakah Anda yakin ingin mengunduh laporan layanan bimbingan konseling (Format Word)?',
+      type: 'download',
+      confirmText: 'Ya, Unduh Word'
+    });
+    if (!confirmed) return;
+
+    const filterDesc = [
+      filterKelas ? `Kelas ${filterKelas}` : '',
+      monthFilter ? `Bulan ${monthFilter}` : '',
+      selectedStatusList.length > 0 ? `Status ${selectedStatusList.join(', ')}` : '',
+      searchTerm ? `Cari "${searchTerm}"` : ''
+    ].filter(Boolean).join(' | ');
+    exportKonselingWord(filteredList, filterDesc || 'Semua');
+  };
+
+  const handleDownloadPDFClick = async () => {
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Unduh PDF',
+      message: 'Apakah Anda yakin ingin mengunduh laporan layanan bimbingan konseling (Format PDF)?',
+      type: 'download',
+      confirmText: 'Ya, Unduh PDF'
+    });
+    if (!confirmed) return;
+
+    const filterDesc = [
+      filterKelas ? `Kelas ${filterKelas}` : '',
+      monthFilter ? `Bulan ${monthFilter}` : '',
+      selectedStatusList.length > 0 ? `Status ${selectedStatusList.join(', ')}` : '',
+      searchTerm ? `Cari "${searchTerm}"` : ''
+    ].filter(Boolean).join(' | ');
+    exportKonselingListPDF(filteredList, filterDesc || 'Semua');
+  };
+
+  const handlePrintCardPDF = async (item: Konseling) => {
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Cetak Kartu PDF',
+      message: `Apakah Anda yakin ingin mengunduh kartu sesi konseling ${item.namaSiswa}?`,
+      type: 'download',
+      confirmText: 'Ya, Unduh Kartu PDF'
+    });
+    if (confirmed) {
+      printKonselingPDF(item);
+    }
   };
 
   return (
@@ -346,22 +455,34 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
             />
           </label>
 
+          {/* Export Excel (Filtered with Photos) */}
           <button
-            onClick={() => exportKonselingExcel(filteredList)}
+            onClick={handleDownloadExcelClick}
             className="px-3.5 py-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-xs font-bold transition-all flex items-center gap-1.5"
-            title="Unduh Data Layanan BK (Excel)"
+            title="Unduh Data Layanan BK Terpilih beserta Foto (Excel)"
           >
             <Download className="w-4 h-4" />
             <span>Unduh Excel</span>
           </button>
           
+          {/* Export Word (Filtered with Photos) */}
           <button
-            onClick={() => exportKonselingWord(filteredList)}
+            onClick={handleDownloadWordClick}
             className="px-3.5 py-2.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 text-xs font-bold transition-all flex items-center gap-1.5"
-            title="Unduh Data Layanan BK (Word)"
+            title="Unduh Data Layanan BK Terpilih beserta Foto (Word)"
           >
             <FileText className="w-4 h-4 text-blue-400" />
             <span>Unduh Word</span>
+          </button>
+
+          {/* Export PDF (Filtered with Photos) */}
+          <button
+            onClick={handleDownloadPDFClick}
+            className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-indigo-500/30 text-xs font-bold transition-all flex items-center gap-1.5 shadow"
+            title="Unduh Laporan Layanan BK Terpilih beserta Foto (PDF)"
+          >
+            <Printer className="w-4 h-4 text-indigo-400" />
+            <span>Unduh PDF</span>
           </button>
 
           <button
@@ -388,16 +509,19 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
         </div>
 
         <div>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full p-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-400/60"
-          >
-            <option value="">Semua Status Penyelesaian</option>
-            <option value="Selesai">Selesai</option>
-            <option value="Proses">Proses</option>
-            <option value="Rujukan">Rujukan / Perlu Penanganan Khusus</option>
-          </select>
+          <MultiSelectDropdown
+            options={[
+              'Proses Bimbingan',
+              'Selesai / Tuntas',
+              'Kunjungan Rumah (Home Visit)',
+              'Pemantauan Berkala',
+              'Konferensi Kasus',
+              'Rujukan Pihak Luar'
+            ]}
+            selectedValues={selectedStatusList}
+            onChange={setSelectedStatusList}
+            placeholder="PILIH STATUS (Bisa Lebih Dari 1)..."
+          />
         </div>
 
         <div className="flex items-center gap-2">
@@ -482,7 +606,7 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
                     <td className="py-3 px-4 text-center">
                       <div className="flex items-center justify-center gap-1.5">
                         <button
-                          onClick={() => printKonselingPDF(item)}
+                          onClick={() => handlePrintCardPDF(item)}
                           className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-blue-400"
                           title="Cetak Kartu PDF"
                         >
@@ -498,7 +622,7 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
                         </button>
                         <button
                           type="button"
-                          onClick={() => onDeleteKonseling(item.id)}
+                          onClick={() => handleDeleteItem(item)}
                           className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-500/20 text-rose-400"
                           title="Hapus"
                         >
@@ -556,18 +680,24 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
                 <div>
                   <label className="block text-amber-300 font-bold mb-1 uppercase tracking-wider text-[11px]">KELAS+JURUSAN</label>
                   <select
-                    required
                     value={formKelas}
                     onChange={(e) => handleClassSelectInForm(e.target.value)}
-                    className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60 cursor-pointer"
+                    className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60 cursor-pointer mb-1.5"
                   >
-                    <option value="">PILIH KELAS</option>
+                    <option value="">PILIH DARI DAFTAR KELAS</option>
                     {availableClassOptions.map((k) => (
                       <option key={k} value={k}>
                         {k}
                       </option>
                     ))}
                   </select>
+                  <input
+                    type="text"
+                    placeholder="Atau ketik kelas secara manual..."
+                    value={formKelas}
+                    onChange={(e) => setFormKelas(e.target.value)}
+                    className="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-300 text-xs focus:outline-none focus:border-amber-400/60"
+                  />
                 </div>
               </div>
 
@@ -638,11 +768,24 @@ export const KonselingView: React.FC<KonselingViewProps> = ({
               {/* STATUS PENYELESAIAN */}
               <div>
                 <label className="block text-amber-300 font-bold mb-1 uppercase tracking-wider text-[11px]">STATUS PENYELESAIAN</label>
+                <select
+                  value={formStatusPenyelesaian}
+                  onChange={(e) => setFormStatusPenyelesaian(e.target.value)}
+                  className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60 font-semibold mb-1.5 cursor-pointer"
+                >
+                  <option value="">-- Pilih Status Preset --</option>
+                  <option value="Proses">Proses Bimbingan</option>
+                  <option value="Selesai">Selesai / Tuntas</option>
+                  <option value="Kunjungan Rumah (Home Visit)">Kunjungan Rumah (Home Visit)</option>
+                  <option value="Pemantauan Berkala">Pemantauan Berkala</option>
+                  <option value="Konferensi Kasus">Konferensi Kasus</option>
+                  <option value="Rujukan Pihak Luar">Rujukan Pihak Luar</option>
+                </select>
                 <input
                   type="text"
                   value={formStatusPenyelesaian}
                   onChange={(e) => setFormStatusPenyelesaian(e.target.value)}
-                  placeholder="Masukkan status (contoh: Proses, Selesai, Pemantauan, dll)..."
+                  placeholder="Atau ketik status penyelesaian secara manual..."
                   className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60 font-semibold"
                 />
               </div>

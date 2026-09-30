@@ -1,5 +1,5 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
-import { Siswa, Absensi, Konseling, JurnalHarian, PenilaianHarian, TataTertibDocument, AppDatabase } from '../types';
+import { Siswa, Absensi, Konseling, JurnalHarian, PenilaianHarian, TataTertibDocument, KolaborasiGuru, AbsensiIbadah, AgendaBK, AppDatabase } from '../types';
 
 interface BKSchema extends DBSchema {
   siswa: {
@@ -31,10 +31,25 @@ interface BKSchema extends DBSchema {
     key: string;
     value: TataTertibDocument;
   };
+  kolaborasi: {
+    key: string;
+    value: KolaborasiGuru;
+    indexes: { 'by-tanggal': string; 'by-kelas': string; 'by-status': string };
+  };
+  absensiIbadah: {
+    key: string;
+    value: AbsensiIbadah;
+    indexes: { 'by-tanggal': string; 'by-jenis': string };
+  };
+  agendaBK: {
+    key: string;
+    value: AgendaBK;
+    indexes: { 'by-tanggal': string; 'by-kategori': string };
+  };
 }
 
 const DB_NAME = 'bk_smkn1_bunyu_db';
-const DB_VERSION = 2; // Incremented for tataTertib
+const DB_VERSION = 4; // Incremented for ibadah & agenda BK
 
 let dbPromise: Promise<IDBPDatabase<BKSchema>> | null = null;
 
@@ -76,6 +91,25 @@ function getDB() {
         if (!db.objectStoreNames.contains('tataTertib')) {
           db.createObjectStore('tataTertib', { keyPath: 'id' });
         }
+        // Kolaborasi Store
+        if (!db.objectStoreNames.contains('kolaborasi')) {
+          const kolaborasiStore = db.createObjectStore('kolaborasi', { keyPath: 'id' });
+          kolaborasiStore.createIndex('by-tanggal', 'tanggal');
+          kolaborasiStore.createIndex('by-kelas', 'kelas');
+          kolaborasiStore.createIndex('by-status', 'statusPenyelesaian');
+        }
+        // Absensi Ibadah Store
+        if (!db.objectStoreNames.contains('absensiIbadah')) {
+          const ibadahStore = db.createObjectStore('absensiIbadah', { keyPath: 'id' });
+          ibadahStore.createIndex('by-tanggal', 'tanggal');
+          ibadahStore.createIndex('by-jenis', 'jenisIbadah');
+        }
+        // Agenda BK Store
+        if (!db.objectStoreNames.contains('agendaBK')) {
+          const agendaStore = db.createObjectStore('agendaBK', { keyPath: 'id' });
+          agendaStore.createIndex('by-tanggal', 'tanggal');
+          agendaStore.createIndex('by-kategori', 'kategori');
+        }
       },
     });
   }
@@ -102,6 +136,89 @@ export const initialJurnalData: JurnalHarian[] = [];
 
 export const initialPenilaianData: PenilaianHarian[] = [];
 
+export const initialKolaborasiData: KolaborasiGuru[] = [
+  {
+    id: 'klb-1',
+    tanggal: new Date().toISOString().split('T')[0],
+    siswaId: 'sw-xto1-1',
+    namaSiswa: 'Ahmad Najib',
+    kelas: 'X TO 1',
+    mitraKolaborasi: 'Wali Kelas & Guru Mapel Matematika',
+    namaRekanGuru: 'Bapak Ruslan, S.Pd.',
+    bentukKolaborasi: 'Konferensi Kasus (Case Conference)',
+    permasalahan: 'Siswa sering tidak konsentrasi pada jam pelajaran eksakta dan sering terlambat masuk kelas.',
+    rencanaSolusi: 'Wali Kelas dan Guru BK melakukan pendekatan individual, pemindahan posisi tempat duduk ke barisan depan, serta koordinasi dengan orang tua siswa.',
+    statusPenyelesaian: 'Solusi Disepakati',
+    guruBK: 'Tim Bimbingan Konseling SMKN 1 Bunyu'
+  },
+  {
+    id: 'klb-2',
+    tanggal: new Date().toISOString().split('T')[0],
+    siswaId: 'sw-xi-1',
+    namaSiswa: 'Andi Saputra',
+    kelas: 'XI TPMG',
+    mitraKolaborasi: 'Guru Produksi & Kajur TPMG',
+    namaRekanGuru: 'Bapak Hartono, S.ST.',
+    bentukKolaborasi: 'Pendampingan Belajar Khusus Bengkel',
+    permasalahan: 'Kedisiplinan Alat Praktik dan Kerapian APD saat Jam Praktik Bengkel Mesin.',
+    rencanaSolusi: 'Dibuatkan jadwal piket kelengkapan APD kelompok dan pemantauan bersama antara Guru Bengkel dan Guru BK.',
+    statusPenyelesaian: 'Selesai',
+    guruBK: 'Tim Bimbingan Konseling SMKN 1 Bunyu'
+  }
+];
+
+export const initialAbsensiIbadahData: AbsensiIbadah[] = [
+  {
+    id: 'ibd-1',
+    tanggal: new Date().toISOString().split('T')[0],
+    jenisIbadah: 'Jumat IMTAQ & Doa',
+    siswaId: 'sw-xto1-1',
+    namaSiswa: 'Ahmad Najib',
+    kelas: 'X TO 1',
+    status: 'Hadir',
+    catatan: 'Mengikuti pembacaan Yasin & IMTAQ pagi di musholla sekolah'
+  },
+  {
+    id: 'ibd-2',
+    tanggal: new Date().toISOString().split('T')[0],
+    jenisIbadah: 'Sholat Dzuhur Berjamaah',
+    siswaId: 'sw-xi-1',
+    namaSiswa: 'Andi Saputra',
+    kelas: 'XI TPMG',
+    status: 'Hadir',
+    catatan: 'Sholat Dzuhur berjamaah musholla SMKN 1 Bunyu'
+  }
+];
+
+export const initialAgendaBKData: AgendaBK[] = [
+  {
+    id: 'ag-1',
+    tanggal: new Date().toISOString().split('T')[0],
+    jam: '09:00',
+    kategori: 'Sesi Konseling Individu',
+    siswaId: 'sw-xto1-1',
+    namaSiswa: 'Ahmad Najib',
+    kelas: 'X TO 1',
+    keterangan: 'Sesi konseling motivasi belajar dan kedisiplinan jam awal',
+    lokasi: 'Ruang BK SMKN 1 Bunyu',
+    status: 'Terlaksana',
+    guruBK: 'Tim Bimbingan Konseling SMKN 1 Bunyu'
+  },
+  {
+    id: 'ag-2',
+    tanggal: new Date().toISOString().split('T')[0],
+    jam: '13:30',
+    kategori: 'Kunjungan Rumah (Home Visit)',
+    siswaId: 'sw-xi-1',
+    namaSiswa: 'Andi Saputra',
+    kelas: 'XI TPMG',
+    keterangan: 'Kunjungan rumah ke kediaman orang tua siswa di Pulau Bunyu',
+    lokasi: 'Rumah Wali Siswa (Pulau Bunyu)',
+    status: 'Rencana',
+    guruBK: 'Tim Bimbingan Konseling SMKN 1 Bunyu'
+  }
+];
+
 // Seed DB if empty (runs only on first app launch)
 export async function initDatabase() {
   const isInitialized = localStorage.getItem('bk_db_initialized');
@@ -111,13 +228,16 @@ export async function initDatabase() {
     const db = await getDB();
     const countSiswa = await db.count('siswa');
     if (countSiswa === 0) {
-      const tx = db.transaction(['siswa', 'absensi', 'konseling', 'jurnal', 'penilaian', 'tataTertib'], 'readwrite');
+      const tx = db.transaction(['siswa', 'absensi', 'konseling', 'jurnal', 'penilaian', 'tataTertib', 'kolaborasi', 'absensiIbadah', 'agendaBK'], 'readwrite');
       for (const item of initialSiswaData) await tx.objectStore('siswa').put(item);
       for (const item of initialAbsensiData) await tx.objectStore('absensi').put(item);
       for (const item of initialKonselingData) await tx.objectStore('konseling').put(item);
       for (const item of initialJurnalData) await tx.objectStore('jurnal').put(item);
       for (const item of initialPenilaianData) await tx.objectStore('penilaian').put(item);
       for (const item of initialTataTertibData) await tx.objectStore('tataTertib').put(item);
+      for (const item of initialKolaborasiData) await tx.objectStore('kolaborasi').put(item);
+      for (const item of initialAbsensiIbadahData) await tx.objectStore('absensiIbadah').put(item);
+      for (const item of initialAgendaBKData) await tx.objectStore('agendaBK').put(item);
       await tx.done;
     }
   } catch (err) {
@@ -129,6 +249,9 @@ export async function initDatabase() {
     if (!localStorage.getItem('bk_jurnal')) localStorage.setItem('bk_jurnal', JSON.stringify(initialJurnalData));
     if (!localStorage.getItem('bk_penilaian')) localStorage.setItem('bk_penilaian', JSON.stringify(initialPenilaianData));
     if (!localStorage.getItem('bk_tata_tertib')) localStorage.setItem('bk_tata_tertib', JSON.stringify(initialTataTertibData));
+    if (!localStorage.getItem('bk_kolaborasi')) localStorage.setItem('bk_kolaborasi', JSON.stringify(initialKolaborasiData));
+    if (!localStorage.getItem('bk_absensi_ibadah')) localStorage.setItem('bk_absensi_ibadah', JSON.stringify(initialAbsensiIbadahData));
+    if (!localStorage.getItem('bk_agenda_bk')) localStorage.setItem('bk_agenda_bk', JSON.stringify(initialAgendaBKData));
     localStorage.setItem('bk_tt_initialized', 'true');
     localStorage.setItem('bk_db_initialized', 'true');
   }
@@ -525,6 +648,153 @@ export async function deleteTataTertib(id: string): Promise<void> {
   }
 }
 
+export async function getAllKolaborasi(): Promise<KolaborasiGuru[]> {
+  try {
+    const db = await getDB();
+    const res = await db.getAll('kolaborasi');
+    if (res && res.length > 0) return res;
+  } catch {
+    // fallback
+  }
+  const local = JSON.parse(localStorage.getItem('bk_kolaborasi') || '[]');
+  if (local.length > 0) return local;
+  localStorage.setItem('bk_kolaborasi', JSON.stringify(initialKolaborasiData));
+  return initialKolaborasiData;
+}
+
+export async function saveKolaborasi(item: KolaborasiGuru): Promise<void> {
+  try {
+    const db = await getDB();
+    await db.put('kolaborasi', item);
+  } catch (err) {
+    console.warn('IndexedDB saveKolaborasi error:', err);
+  }
+  try {
+    const list = JSON.parse(localStorage.getItem('bk_kolaborasi') || '[]');
+    const idx = list.findIndex((x: KolaborasiGuru) => x.id === item.id);
+    if (idx >= 0) list[idx] = item; else list.unshift(item);
+    localStorage.setItem('bk_kolaborasi', JSON.stringify(list));
+  } catch {
+    // ignore
+  }
+}
+
+export async function deleteKolaborasi(id: string): Promise<void> {
+  try {
+    const db = await getDB();
+    await db.delete('kolaborasi', id);
+  } catch (err) {
+    console.warn('IndexedDB deleteKolaborasi error:', err);
+  }
+  try {
+    const list = JSON.parse(localStorage.getItem('bk_kolaborasi') || '[]');
+    const filtered = list.filter((x: KolaborasiGuru) => x.id !== id);
+    localStorage.setItem('bk_kolaborasi', JSON.stringify(filtered));
+  } catch {
+    // ignore
+  }
+}
+
+// Absensi Ibadah Helpers
+export async function getAllAbsensiIbadah(): Promise<AbsensiIbadah[]> {
+  try {
+    const db = await getDB();
+    const res = await db.getAll('absensiIbadah');
+    if (res && res.length > 0) return res;
+  } catch {
+    // fallback
+  }
+  const local = JSON.parse(localStorage.getItem('bk_absensi_ibadah') || '[]');
+  if (local.length > 0) return local;
+  localStorage.setItem('bk_absensi_ibadah', JSON.stringify(initialAbsensiIbadahData));
+  return initialAbsensiIbadahData;
+}
+
+export async function saveAbsensiIbadahBatch(items: AbsensiIbadah[]): Promise<void> {
+  try {
+    const db = await getDB();
+    const tx = db.transaction('absensiIbadah', 'readwrite');
+    for (const item of items) await tx.store.put(item);
+    await tx.done;
+  } catch (err) {
+    console.warn('IndexedDB saveAbsensiIbadahBatch error:', err);
+  }
+  try {
+    const list = JSON.parse(localStorage.getItem('bk_absensi_ibadah') || '[]');
+    for (const item of items) {
+      const idx = list.findIndex((x: AbsensiIbadah) => x.id === item.id);
+      if (idx >= 0) list[idx] = item; else list.push(item);
+    }
+    localStorage.setItem('bk_absensi_ibadah', JSON.stringify(list));
+  } catch {
+    // ignore
+  }
+}
+
+export async function deleteAbsensiIbadah(id: string): Promise<void> {
+  try {
+    const db = await getDB();
+    await db.delete('absensiIbadah', id);
+  } catch (err) {
+    console.warn('IndexedDB deleteAbsensiIbadah error:', err);
+  }
+  try {
+    const list = JSON.parse(localStorage.getItem('bk_absensi_ibadah') || '[]');
+    const filtered = list.filter((x: AbsensiIbadah) => x.id !== id);
+    localStorage.setItem('bk_absensi_ibadah', JSON.stringify(filtered));
+  } catch {
+    // ignore
+  }
+}
+
+// Agenda BK Helpers
+export async function getAllAgendaBK(): Promise<AgendaBK[]> {
+  try {
+    const db = await getDB();
+    const res = await db.getAll('agendaBK');
+    if (res && res.length > 0) return res;
+  } catch {
+    // fallback
+  }
+  const local = JSON.parse(localStorage.getItem('bk_agenda_bk') || '[]');
+  if (local.length > 0) return local;
+  localStorage.setItem('bk_agenda_bk', JSON.stringify(initialAgendaBKData));
+  return initialAgendaBKData;
+}
+
+export async function saveAgendaBK(item: AgendaBK): Promise<void> {
+  try {
+    const db = await getDB();
+    await db.put('agendaBK', item);
+  } catch (err) {
+    console.warn('IndexedDB saveAgendaBK error:', err);
+  }
+  try {
+    const list = JSON.parse(localStorage.getItem('bk_agenda_bk') || '[]');
+    const idx = list.findIndex((x: AgendaBK) => x.id === item.id);
+    if (idx >= 0) list[idx] = item; else list.unshift(item);
+    localStorage.setItem('bk_agenda_bk', JSON.stringify(list));
+  } catch {
+    // ignore
+  }
+}
+
+export async function deleteAgendaBK(id: string): Promise<void> {
+  try {
+    const db = await getDB();
+    await db.delete('agendaBK', id);
+  } catch (err) {
+    console.warn('IndexedDB deleteAgendaBK error:', err);
+  }
+  try {
+    const list = JSON.parse(localStorage.getItem('bk_agenda_bk') || '[]');
+    const filtered = list.filter((x: AgendaBK) => x.id !== id);
+    localStorage.setItem('bk_agenda_bk', JSON.stringify(filtered));
+  } catch {
+    // ignore
+  }
+}
+
 // Full Database Export & Import (JSON Backup)
 export async function exportDatabaseJSON(): Promise<AppDatabase> {
   const siswa = await getAllSiswa();
@@ -533,6 +803,9 @@ export async function exportDatabaseJSON(): Promise<AppDatabase> {
   const jurnal = await getAllJurnal();
   const penilaian = await getAllPenilaian();
   const tataTertib = await getAllTataTertib();
+  const kolaborasi = await getAllKolaborasi();
+  const absensiIbadah = await getAllAbsensiIbadah();
+  const agendaBK = await getAllAgendaBK();
 
   return {
     version: '1.0',
@@ -543,6 +816,9 @@ export async function exportDatabaseJSON(): Promise<AppDatabase> {
     jurnal,
     penilaian,
     tataTertib,
+    kolaborasi,
+    absensiIbadah,
+    agendaBK
   };
 }
 
@@ -561,6 +837,15 @@ export async function importDatabaseJSON(data: Partial<AppDatabase>): Promise<bo
     }
     if (data.tataTertib && Array.isArray(data.tataTertib)) {
       for (const t of data.tataTertib) await saveTataTertib(t);
+    }
+    if (data.kolaborasi && Array.isArray(data.kolaborasi)) {
+      for (const k of data.kolaborasi) await saveKolaborasi(k);
+    }
+    if (data.absensiIbadah && Array.isArray(data.absensiIbadah)) {
+      await saveAbsensiIbadahBatch(data.absensiIbadah);
+    }
+    if (data.agendaBK && Array.isArray(data.agendaBK)) {
+      for (const a of data.agendaBK) await saveAgendaBK(a);
     }
     return true;
   } catch (err) {

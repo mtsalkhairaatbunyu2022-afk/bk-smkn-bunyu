@@ -9,6 +9,9 @@ import { AbsenSiswaView } from './components/AbsenSiswaView';
 import { KonselingView } from './components/KonselingView';
 import { JurnalHarianView } from './components/JurnalHarianView';
 import { PenilaianHarianView } from './components/PenilaianHarianView';
+import { KolaborasiView } from './components/KolaborasiView';
+import { AbsensiIbadahView } from './components/AbsensiIbadahView';
+import { AgendaBKView } from './components/AgendaBKView';
 import { InstallModal } from './components/InstallModal';
 import { BackupRestoreModal } from './components/BackupRestoreModal';
 
@@ -21,6 +24,9 @@ import {
   JurnalHarian,
   PenilaianHarian,
   TataTertibDocument,
+  KolaborasiGuru,
+  AbsensiIbadah,
+  AgendaBK,
   ActiveTab
 } from './types';
 
@@ -45,6 +51,15 @@ import {
   getAllTataTertib,
   saveTataTertib,
   deleteTataTertib,
+  getAllKolaborasi,
+  saveKolaborasi,
+  deleteKolaborasi,
+  getAllAbsensiIbadah,
+  saveAbsensiIbadahBatch,
+  deleteAbsensiIbadah,
+  getAllAgendaBK,
+  saveAgendaBK,
+  deleteAgendaBK,
   exportDatabaseJSON
 } from './db/indexedDB';
 
@@ -79,6 +94,9 @@ export default function App() {
   const [jurnalList, setJurnalList] = useState<JurnalHarian[]>([]);
   const [penilaianList, setPenilaianList] = useState<PenilaianHarian[]>([]);
   const [tataTertibList, setTataTertibList] = useState<TataTertibDocument[]>([]);
+  const [kolaborasiList, setKolaborasiList] = useState<KolaborasiGuru[]>([]);
+  const [ibadahList, setIbadahList] = useState<AbsensiIbadah[]>([]);
+  const [agendaBKList, setAgendaBKList] = useState<AgendaBK[]>([]);
 
   // PWA Register & Install Prompt Handler
   useEffect(() => {
@@ -123,13 +141,16 @@ export default function App() {
 
   // Fetch Database Data
   const loadAllData = useCallback(async () => {
-    const [sw, ab, ks, jr, pn, tt] = await Promise.all([
+    const [sw, ab, ks, jr, pn, tt, kl, ib, ag] = await Promise.all([
       getAllSiswa(),
       getAllAbsensi(),
       getAllKonseling(),
       getAllJurnal(),
       getAllPenilaian(),
-      getAllTataTertib()
+      getAllTataTertib(),
+      getAllKolaborasi(),
+      getAllAbsensiIbadah(),
+      getAllAgendaBK()
     ]);
     setSiswaList(sw);
     setAbsensiList(ab);
@@ -137,6 +158,9 @@ export default function App() {
     setJurnalList(jr);
     setPenilaianList(pn);
     setTataTertibList(tt);
+    setKolaborasiList(kl);
+    setIbadahList(ib);
+    setAgendaBKList(ag);
   }, []);
 
   useEffect(() => {
@@ -307,6 +331,60 @@ export default function App() {
     await loadAllData();
   };
 
+  // Kolaborasi Handlers
+  const handleSaveKolaborasi = async (item: KolaborasiGuru) => {
+    setKolaborasiList(prev => {
+      const idx = prev.findIndex(x => x.id === item.id);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = item;
+        return copy;
+      }
+      return [item, ...prev];
+    });
+    await saveKolaborasi(item);
+    await loadAllData();
+  };
+
+  const handleDeleteKolaborasi = async (id: string) => {
+    setKolaborasiList(prev => prev.filter(x => x.id !== id));
+    await deleteKolaborasi(id);
+    await loadAllData();
+  };
+
+  // Absensi Ibadah Handlers
+  const handleSaveIbadahBatch = async (items: AbsensiIbadah[]) => {
+    await saveAbsensiIbadahBatch(items);
+    await loadAllData();
+  };
+
+  const handleDeleteIbadah = async (id: string) => {
+    setIbadahList(prev => prev.filter(x => x.id !== id));
+    await deleteAbsensiIbadah(id);
+    await loadAllData();
+  };
+
+  // Agenda BK Handlers
+  const handleSaveAgendaBK = async (item: AgendaBK) => {
+    setAgendaBKList(prev => {
+      const idx = prev.findIndex(x => x.id === item.id);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = item;
+        return copy;
+      }
+      return [item, ...prev];
+    });
+    await saveAgendaBK(item);
+    await loadAllData();
+  };
+
+  const handleDeleteAgendaBK = async (id: string) => {
+    setAgendaBKList(prev => prev.filter(x => x.id !== id));
+    await deleteAgendaBK(id);
+    await loadAllData();
+  };
+
   return (
     <div className="min-h-screen bg-[#071533] text-slate-100 flex flex-col font-sans selection:bg-amber-400 selection:text-slate-900">
       {/* 1. Splash Screen (Initial 2 seconds) */}
@@ -396,6 +474,24 @@ export default function App() {
                 />
               )}
 
+              {activeTab === 'absensi_ibadah' && (
+                <AbsensiIbadahView
+                  siswaList={siswaList}
+                  ibadahList={ibadahList}
+                  onSaveIbadahBatch={handleSaveIbadahBatch}
+                  onDeleteIbadah={handleDeleteIbadah}
+                />
+              )}
+
+              {activeTab === 'agenda_bk' && (
+                <AgendaBKView
+                  siswaList={siswaList}
+                  agendaList={agendaBKList}
+                  onSaveAgenda={handleSaveAgendaBK}
+                  onDeleteAgenda={handleDeleteAgendaBK}
+                />
+              )}
+
               {activeTab === 'konseling' && (
                 <KonselingView
                   siswaList={siswaList}
@@ -427,6 +523,15 @@ export default function App() {
                   filterKelas="XI TPMG"
                   allowClasses={['XI TPMG']}
                   viewTitle="Bimbingan Konseling XI TPMG"
+                />
+              )}
+
+              {activeTab === 'kolaborasi' && (
+                <KolaborasiView
+                  siswaList={siswaList}
+                  kolaborasiList={kolaborasiList}
+                  onSaveKolaborasi={handleSaveKolaborasi}
+                  onDeleteKolaborasi={handleDeleteKolaborasi}
                 />
               )}
 

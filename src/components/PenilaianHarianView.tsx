@@ -1,8 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { Award, Plus, Edit2, Trash2, Download, Search, X, FileText } from 'lucide-react';
+import { Award, Plus, Edit2, Trash2, Download, Search, X, FileText, Printer } from 'lucide-react';
 import { Siswa, PenilaianHarian } from '../types';
 import { exportPenilaianExcel } from '../utils/excelUtils';
 import { exportPenilaianWord } from '../utils/wordUtils';
+import { exportPenilaianPDF } from '../utils/pdfUtils';
+import { useConfirm } from '../context/ConfirmContext';
+import { MultiSelectDropdown } from './MultiSelectDropdown';
 
 interface PenilaianHarianViewProps {
   siswaList: Siswa[];
@@ -21,8 +24,9 @@ export const PenilaianHarianView: React.FC<PenilaianHarianViewProps> = ({
   onDeletePenilaian,
   onExportExcel
 }) => {
+  const { confirmAction } = useConfirm();
   const [searchTerm, setSearchTerm] = useState('');
-  const [kelasFilter, setKelasFilter] = useState('');
+  const [selectedKelasList, setSelectedKelasList] = useState<string[]>([]);
   const [monthFilter, setMonthFilter] = useState('');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -39,23 +43,25 @@ export const PenilaianHarianView: React.FC<PenilaianHarianViewProps> = ({
   const availableClasses = useMemo(() => Array.from(new Set(siswaList.map(s => (s.kelas || '').trim()).filter(Boolean))).sort(), [siswaList]);
 
   const modalFilteredSiswa = useMemo(() => {
-    const activeK = (formKelas || kelasFilter || '').trim().toLowerCase();
+    const activeK = (formKelas || (selectedKelasList.length > 0 ? selectedKelasList[0] : '')).trim().toLowerCase();
     if (activeK) {
       return siswaList.filter(s => (s.kelas || '').trim().toLowerCase() === activeK);
     }
-    return siswaList;
-  }, [siswaList, formKelas, kelasFilter]);
+    return [];
+  }, [siswaList, formKelas, selectedKelasList]);
 
   const filteredList = useMemo(() => {
     return penilaianList.filter(p => {
       const search = (searchTerm || '').toLowerCase();
       const matchSearch = (p.namaSiswa || '').toLowerCase().includes(search) ||
         (p.mataPelajaran || '').toLowerCase().includes(search);
-      const matchKelas = !kelasFilter || p.kelas === kelasFilter;
+      const matchKelas =
+        selectedKelasList.length === 0 ||
+        selectedKelasList.some(k => (p.kelas || '').trim().toLowerCase() === k.trim().toLowerCase());
       const matchMonth = !monthFilter || (p.tanggal || '').startsWith(monthFilter);
       return matchSearch && matchKelas && matchMonth;
     });
-  }, [penilaianList, searchTerm, kelasFilter, monthFilter]);
+  }, [penilaianList, searchTerm, selectedKelasList, monthFilter]);
 
   // Rata-rata otomatis calculation
   const averageGrade = useMemo(() => {
@@ -76,7 +82,7 @@ export const PenilaianHarianView: React.FC<PenilaianHarianViewProps> = ({
   const handleOpenAdd = () => {
     setEditingItem(null);
     setFormTanggal(new Date().toISOString().split('T')[0]);
-    const initK = kelasFilter || (availableClasses.length > 0 ? availableClasses[0] : '');
+    const initK = (selectedKelasList.length > 0 ? selectedKelasList[0] : '') || (availableClasses.length > 0 ? availableClasses[0] : '');
     setFormKelas(initK);
     const initialList = initK ? siswaList.filter(s => (s.kelas || '').trim().toLowerCase() === initK.trim().toLowerCase()) : siswaList;
     if (initialList.length > 0) {
@@ -92,7 +98,15 @@ export const PenilaianHarianView: React.FC<PenilaianHarianViewProps> = ({
     setIsModalOpen(true);
   };
 
-  const handleOpenEdit = (item: PenilaianHarian) => {
+  const handleOpenEdit = async (item: PenilaianHarian) => {
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Edit Penilaian',
+      message: `Apakah Anda yakin ingin mengedit penilaian harian ${item.namaSiswa}?`,
+      type: 'edit',
+      confirmText: 'Ya, Edit'
+    });
+    if (!confirmed) return;
+
     setEditingItem(item);
     setFormTanggal(item.tanggal);
     setFormSiswaId(item.siswaId);
@@ -104,9 +118,32 @@ export const PenilaianHarianView: React.FC<PenilaianHarianViewProps> = ({
     setIsModalOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleDeleteItem = async (item: PenilaianHarian) => {
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Hapus Penilaian',
+      message: `Apakah Anda yakin ingin menghapus data penilaian ${item.namaSiswa} (${item.mataPelajaran})?`,
+      type: 'delete',
+      confirmText: 'Ya, Hapus'
+    });
+    if (confirmed) {
+      onDeletePenilaian(item.id);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formNamaSiswa.trim()) return;
+
+    const isEditing = !!editingItem;
+    const confirmed = await confirmAction({
+      title: isEditing ? 'Konfirmasi Simpan Edit Penilaian' : 'Konfirmasi Simpan Penilaian Harian',
+      message: isEditing
+        ? `Apakah Anda yakin ingin menyimpan perubahan penilaian harian ${formNamaSiswa}?`
+        : `Apakah Anda yakin ingin menyimpan penilaian harian baru untuk ${formNamaSiswa}?`,
+      type: isEditing ? 'edit' : 'save',
+      confirmText: isEditing ? 'Ya, Simpan Edit' : 'Ya, Simpan'
+    });
+    if (!confirmed) return;
 
     if (editingItem) {
       onUpdatePenilaian({
@@ -135,6 +172,57 @@ export const PenilaianHarianView: React.FC<PenilaianHarianViewProps> = ({
     setIsModalOpen(false);
   };
 
+  const handleDownloadExcelClick = async () => {
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Unduh Excel',
+      message: 'Apakah Anda yakin ingin mengunduh data penilaian harian (Format Excel)?',
+      type: 'download',
+      confirmText: 'Ya, Unduh Excel'
+    });
+    if (!confirmed) return;
+
+    const filterDesc = [
+      selectedKelasList.length > 0 ? `Kelas ${selectedKelasList.join(', ')}` : '',
+      monthFilter ? `Bulan ${monthFilter}` : '',
+      searchTerm ? `Cari "${searchTerm}"` : ''
+    ].filter(Boolean).join(' | ');
+    exportPenilaianExcel(filteredList, filterDesc || 'Semua');
+  };
+
+  const handleDownloadWordClick = async () => {
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Unduh Word',
+      message: 'Apakah Anda yakin ingin mengunduh data penilaian harian (Format Word)?',
+      type: 'download',
+      confirmText: 'Ya, Unduh Word'
+    });
+    if (!confirmed) return;
+
+    const filterDesc = [
+      selectedKelasList.length > 0 ? `Kelas ${selectedKelasList.join(', ')}` : '',
+      monthFilter ? `Bulan ${monthFilter}` : '',
+      searchTerm ? `Cari "${searchTerm}"` : ''
+    ].filter(Boolean).join(' | ');
+    exportPenilaianWord(filteredList, filterDesc || 'Semua');
+  };
+
+  const handleDownloadPDFClick = async () => {
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Unduh PDF',
+      message: 'Apakah Anda yakin ingin mengunduh data penilaian harian (Format PDF)?',
+      type: 'download',
+      confirmText: 'Ya, Unduh PDF'
+    });
+    if (!confirmed) return;
+
+    const filterDesc = [
+      selectedKelasList.length > 0 ? `Kelas ${selectedKelasList.join(', ')}` : '',
+      monthFilter ? `Bulan ${monthFilter}` : '',
+      searchTerm ? `Cari "${searchTerm}"` : ''
+    ].filter(Boolean).join(' | ');
+    exportPenilaianPDF(filteredList, filterDesc || 'Semua');
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-lg">
@@ -149,20 +237,31 @@ export const PenilaianHarianView: React.FC<PenilaianHarianViewProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Export Excel (Strictly Filtered) */}
           <button
-            onClick={() => exportPenilaianExcel(filteredList)}
+            onClick={handleDownloadExcelClick}
             className="px-3.5 py-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-xs font-bold transition-all flex items-center gap-1.5"
-            title="Unduh Data Penilaian (Excel)"
+            title="Unduh Data Penilaian Terpilih (Excel)"
           >
             <Download className="w-4 h-4" /> Unduh Excel
           </button>
           
+          {/* Export Word (Strictly Filtered) */}
           <button
-            onClick={() => exportPenilaianWord(filteredList)}
+            onClick={handleDownloadWordClick}
             className="px-3.5 py-2.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 text-xs font-bold transition-all flex items-center gap-1.5"
-            title="Unduh Data Penilaian (Word)"
+            title="Unduh Data Penilaian Terpilih (Word)"
           >
             <FileText className="w-4 h-4 text-blue-400" /> Unduh Word
+          </button>
+
+          {/* Export PDF (Strictly Filtered) */}
+          <button
+            onClick={handleDownloadPDFClick}
+            className="px-3.5 py-2.5 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 text-xs font-bold transition-all flex items-center gap-1.5 shadow"
+            title="Unduh Data Penilaian Terpilih (PDF)"
+          >
+            <Printer className="w-4 h-4 text-purple-400" /> Unduh PDF
           </button>
 
           <button
@@ -197,16 +296,12 @@ export const PenilaianHarianView: React.FC<PenilaianHarianViewProps> = ({
         </div>
 
         <div>
-          <select
-            value={kelasFilter}
-            onChange={(e) => setKelasFilter(e.target.value)}
-            className="w-full h-full px-3 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-400/60"
-          >
-            <option value="">SEMUA KELAS</option>
-            {availableClasses.map(k => (
-              <option key={k} value={k}>{k}</option>
-            ))}
-          </select>
+          <MultiSelectDropdown
+            options={availableClasses}
+            selectedValues={selectedKelasList}
+            onChange={setSelectedKelasList}
+            placeholder="PILIH KELAS (Multi-Select)..."
+          />
         </div>
 
         <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded-xl px-2.5">
@@ -273,7 +368,7 @@ export const PenilaianHarianView: React.FC<PenilaianHarianViewProps> = ({
                         </button>
                         <button
                           type="button"
-                          onClick={() => onDeletePenilaian(item.id)}
+                          onClick={() => handleDeleteItem(item)}
                           className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-500/20 text-rose-400"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -335,7 +430,7 @@ export const PenilaianHarianView: React.FC<PenilaianHarianViewProps> = ({
                         setFormNamaSiswa('');
                       }
                     }}
-                    className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60 cursor-pointer"
+                    className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60 cursor-pointer mb-1.5"
                   >
                     <option value="">PILIH KELAS</option>
                     {availableClasses.map((k) => (
@@ -344,35 +439,64 @@ export const PenilaianHarianView: React.FC<PenilaianHarianViewProps> = ({
                       </option>
                     ))}
                   </select>
+                  <input
+                    type="text"
+                    placeholder="Atau ketik kelas secara manual..."
+                    value={formKelas}
+                    onChange={(e) => setFormKelas(e.target.value)}
+                    className="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-300 text-xs focus:outline-none focus:border-amber-400/60"
+                  />
                 </div>
               </div>
 
               <div>
                 <label className="block text-slate-300 font-semibold mb-1">
-                  Pilih Siswa {formKelas ? `(Kelas ${formKelas})` : ''}
+                  Nama Siswa {formKelas ? `(Kelas ${formKelas})` : ''}
                 </label>
                 <select
                   value={formSiswaId}
                   onChange={(e) => handleSelectSiswa(e.target.value)}
-                  className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60 cursor-pointer"
+                  className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60 cursor-pointer mb-1.5"
                 >
                   <option value="">
-                    {modalFilteredSiswa.length > 0 ? '-- Pilih Siswa --' : '-- Tidak ada siswa pada kelas ini --'}
+                    {modalFilteredSiswa.length > 0 ? '-- Pilih Siswa dari Database --' : '-- Tidak ada siswa pada kelas ini --'}
                   </option>
                   {modalFilteredSiswa.map(s => (
                     <option key={s.id} value={s.id}>{s.nama} ({s.kelas})</option>
                   ))}
                 </select>
+                <input
+                  type="text"
+                  required
+                  placeholder="Atau ketik nama siswa secara manual..."
+                  value={formNamaSiswa}
+                  onChange={(e) => setFormNamaSiswa(e.target.value)}
+                  className="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-amber-400/60"
+                />
               </div>
 
               <div>
                 <label className="block text-slate-300 font-semibold mb-1">Mata Pelajaran / Aspek Penilaian</label>
+                <select
+                  onChange={(e) => {
+                    if (e.target.value) setFormMataPelajaran(e.target.value);
+                  }}
+                  className="w-full p-2 bg-slate-900 border border-slate-800 rounded-lg text-slate-300 text-xs focus:outline-none focus:border-amber-400/60 mb-1.5 cursor-pointer"
+                >
+                  <option value="">-- Pilih Aspek Penilaian Preset (Opsional) --</option>
+                  <option value="Kedisiplinan & Tata Tertib Sekolah">Kedisiplinan & Tata Tertib Sekolah</option>
+                  <option value="Sikap & Perilaku Santun (Akhlak)">Sikap & Perilaku Santun (Akhlak)</option>
+                  <option value="Kerajinan & Kehadiran Kelas">Kerajinan & Kehadiran Kelas</option>
+                  <option value="Kerapihan Pakaian & Seragam">Kerapihan Pakaian & Seragam</option>
+                  <option value="Kerjasama & Kepedulian Sosial">Kerjasama & Kepedulian Sosial</option>
+                  <option value="Keaktifan & Keterampilan Diri">Keaktifan & Keterampilan Diri</option>
+                </select>
                 <input
                   type="text"
                   required
                   value={formMataPelajaran}
                   onChange={(e) => setFormMataPelajaran(e.target.value)}
-                  placeholder="Contoh: Sikap & Kedisiplinan..."
+                  placeholder="Atau ketik aspek penilaian secara manual..."
                   className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60"
                 />
               </div>
@@ -393,12 +517,24 @@ export const PenilaianHarianView: React.FC<PenilaianHarianViewProps> = ({
 
                 <div>
                   <label className="block text-slate-300 font-semibold mb-1">Keterangan</label>
+                  <select
+                    onChange={(e) => {
+                      if (e.target.value) setFormKeterangan(e.target.value);
+                    }}
+                    className="w-full p-2 bg-slate-900 border border-slate-800 rounded-lg text-slate-300 text-xs focus:outline-none focus:border-amber-400/60 mb-1.5 cursor-pointer"
+                  >
+                    <option value="">-- Pilih Preset Keterangan --</option>
+                    <option value="Sangat Baik (A)">Sangat Baik (A)</option>
+                    <option value="Baik (B)">Baik (B)</option>
+                    <option value="Cukup (C)">Cukup (C)</option>
+                    <option value="Perlu Pembinaan (D)">Perlu Pembinaan (D)</option>
+                  </select>
                   <input
                     type="text"
                     required
                     value={formKeterangan}
                     onChange={(e) => setFormKeterangan(e.target.value)}
-                    placeholder="Contoh: Sangat Baik / Cukup"
+                    placeholder="Atau ketik keterangan secara manual..."
                     className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60"
                   />
                 </div>

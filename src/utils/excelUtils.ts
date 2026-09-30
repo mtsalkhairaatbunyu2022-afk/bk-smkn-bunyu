@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
-import { Siswa, Absensi, Konseling, JurnalHarian, PenilaianHarian } from '../types';
+import ExcelJS from 'exceljs';
+import { Siswa, Absensi, Konseling, JurnalHarian, PenilaianHarian, KolaborasiGuru } from '../types';
 
 /**
  * Creates an XLSX Worksheet with a 2-row merged header structure.
@@ -82,8 +83,8 @@ export function exportSingleSheetExcel(data: any[], fileName: string, sheetName 
   XLSX.writeFile(workbook, `${fileName}_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
-// 1. Export Data Siswa to Excel
-export function exportSiswaExcel(siswaList: Siswa[]) {
+// 1. Export Data Siswa to Excel (Filtered)
+export function exportSiswaExcel(siswaList: Siswa[], kelasInfo?: string) {
   const mainHeaders = [
     { title: 'NOMOR', rowSpan: 2 },
     { title: 'NAMA', rowSpan: 2 },
@@ -104,7 +105,7 @@ export function exportSiswaExcel(siswaList: Siswa[]) {
   ]);
 
   const worksheet = createFormattedSheet(
-    'DATA SISWA SMKN 1 BUNYU',
+    `DATA SISWA SMKN 1 BUNYU ${kelasInfo ? `(KELAS ${kelasInfo})` : ''}`,
     mainHeaders,
     subHeaders,
     rows,
@@ -113,14 +114,19 @@ export function exportSiswaExcel(siswaList: Siswa[]) {
 
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Data Siswa');
-  XLSX.writeFile(workbook, `Data_Siswa_SMKN1_Bunyu_${new Date().toISOString().split('T')[0]}.xlsx`);
+  XLSX.writeFile(workbook, `Data_Siswa_${kelasInfo ? kelasInfo.replace(/[^a-zA-Z0-9]/g, '_') : 'Semua'}_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
-// 2. Export Absensi Siswa to Excel (with Summary matching user image + Detail Log)
-export function exportAbsensiExcel(absensiList: Absensi[], siswaList: Siswa[] = []) {
+// 2. Export Absensi Siswa to Excel (Filtered by Selected Class & Date/Month)
+export function exportAbsensiExcel(
+  absensiList: Absensi[],
+  siswaList: Siswa[] = [],
+  kelasInfo?: string,
+  periodeInfo?: string
+) {
   const workbook = XLSX.utils.book_new();
 
-  // Compute student summary
+  // Compute student summary from filtered target students
   let targetStudents: { id: string; nama: string; kelas: string }[] = [];
 
   if (siswaList.length > 0) {
@@ -136,7 +142,7 @@ export function exportAbsensiExcel(absensiList: Absensi[], siswaList: Siswa[] = 
     targetStudents = Array.from(map.values());
   }
 
-  // Build summary rows (NOMOR | NAMA | KETERANGAN: HADIR | SAKIT | IZIN | TERLAMBAT | ALPHA)
+  // Build summary rows (NOMOR | NAMA | KELAS | HADIR | SAKIT | IZIN | TERLAMBAT | ALPHA)
   const summaryRows = targetStudents.map((s, idx) => {
     const studentAbsensi = absensiList.filter(a => a.siswaId === s.id || a.namaSiswa === s.nama);
     const hadir = studentAbsensi.filter(a => a.status === 'Hadir').length;
@@ -145,28 +151,29 @@ export function exportAbsensiExcel(absensiList: Absensi[], siswaList: Siswa[] = 
     const terlambat = studentAbsensi.filter(a => a.status === 'Terlambat').length;
     const alpha = studentAbsensi.filter(a => a.status === 'Alpha').length;
 
-    return [idx + 1, s.nama, hadir, sakit, izin, terlambat, alpha];
+    return [idx + 1, s.nama, s.kelas, hadir, sakit, izin, terlambat, alpha];
   });
 
   const summaryMainHeaders = [
     { title: 'NOMOR', rowSpan: 2 },
     { title: 'NAMA', rowSpan: 2 },
-    { title: 'KETERANGAN', colSpan: 5 }
+    { title: 'KELAS', rowSpan: 2 },
+    { title: 'KETERANGAN REKAPITULASI KEHADIRAN', colSpan: 5 }
   ];
 
-  const summarySubHeaders = ['', '', 'HADIR', 'SAKIT', 'IZIN', 'TERLAMBAT', 'ALPHA'];
+  const summarySubHeaders = ['', '', '', 'HADIR', 'SAKIT', 'IZIN', 'TERLAMBAT', 'ALPHA'];
 
   const summaryWorksheet = createFormattedSheet(
-    'REKAPITULASI ABSENSI SISWA SMKN 1 BUNYU',
+    `REKAPITULASI ABSENSI SISWA SMKN 1 BUNYU ${kelasInfo ? `(KELAS ${kelasInfo})` : ''} ${periodeInfo ? `(${periodeInfo})` : ''}`,
     summaryMainHeaders,
     summarySubHeaders,
     summaryRows,
-    [8, 30, 12, 12, 12, 14, 12]
+    [8, 30, 15, 12, 12, 12, 14, 12]
   );
 
   XLSX.utils.book_append_sheet(workbook, summaryWorksheet, 'Rekap Absensi Siswa');
 
-  // Sheet 2: Log Detail Absensi Harian
+  // Sheet 2: Log Detail Absensi Harian (Filtered)
   const logRows = absensiList.map((a, idx) => [
     idx + 1,
     a.namaSiswa,
@@ -185,7 +192,7 @@ export function exportAbsensiExcel(absensiList: Absensi[], siswaList: Siswa[] = 
   const logSubHeaders = ['', '', 'TANGGAL', 'KELAS', 'STATUS', 'CATATAN'];
 
   const logWorksheet = createFormattedSheet(
-    'LOG DETAIL ABSENSI HARIAN SMKN 1 BUNYU',
+    `LOG DETAIL ABSENSI HARIAN SMKN 1 BUNYU ${kelasInfo ? `(KELAS ${kelasInfo})` : ''}`,
     logMainHeaders,
     logSubHeaders,
     logRows,
@@ -194,45 +201,216 @@ export function exportAbsensiExcel(absensiList: Absensi[], siswaList: Siswa[] = 
 
   XLSX.utils.book_append_sheet(workbook, logWorksheet, 'Log Detail Absensi');
 
-  XLSX.writeFile(workbook, `Laporan_Absensi_Siswa_${new Date().toISOString().split('T')[0]}.xlsx`);
+  XLSX.writeFile(workbook, `Laporan_Absensi_${kelasInfo ? kelasInfo.replace(/[^a-zA-Z0-9]/g, '_') : 'Semua'}_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
-// 3. Export Bimbingan Konseling to Excel
-export function exportKonselingExcel(konselingList: Konseling[]) {
-  const mainHeaders = [
-    { title: 'NOMOR', rowSpan: 2 },
-    { title: 'NAMA', rowSpan: 2 },
-    { title: 'DETAIL LAYANAN BIMBINGAN KONSELING', colSpan: 6 }
+// 3. Export Filtered Bimbingan Konseling to Excel (Native .xlsx Binary with Embedded Images)
+export async function exportKonselingExcel(konselingList: Konseling[], filterInfo?: string) {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Layanan BK');
+
+  worksheet.views = [{ showGridLines: true }];
+
+  // Title Headers
+  worksheet.mergeCells('A1:I1');
+  const title1 = worksheet.getCell('A1');
+  title1.value = 'PEMERINTAH PROVINSI KALIMANTAN UTARA - DINAS PENDIDIKAN DAN KEBUDAYAAN';
+  title1.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFD700' } };
+  title1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0B1B47' } };
+  title1.alignment = { horizontal: 'center', vertical: 'middle' };
+
+  worksheet.mergeCells('A2:I2');
+  const title2 = worksheet.getCell('A2');
+  title2.value = 'SMK NEGERI 1 BUNYU';
+  title2.font = { name: 'Calibri', size: 15, bold: true, color: { argb: 'FFFFFFFF' } };
+  title2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0B1B47' } };
+  title2.alignment = { horizontal: 'center', vertical: 'middle' };
+
+  worksheet.mergeCells('A3:I3');
+  const title3 = worksheet.getCell('A3');
+  title3.value = 'Alamat: Jl. Pendidikan No. 1, Pulau Bunyu, Kab. Bulungan, Kalimantan Utara | Email: smkn1bunyu@gmail.com';
+  title3.font = { name: 'Calibri', size: 9, italic: true, color: { argb: 'FF334155' } };
+  title3.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+  title3.alignment = { horizontal: 'center', vertical: 'middle' };
+
+  worksheet.mergeCells('A5:I5');
+  const title4 = worksheet.getCell('A5');
+  title4.value = 'LAPORAN LAYANAN BIMBINGAN DAN KONSELING';
+  title4.font = { name: 'Calibri', size: 13, bold: true, underline: true, color: { argb: 'FF0B1B47' } };
+  title4.alignment = { horizontal: 'center', vertical: 'middle' };
+
+  if (filterInfo) {
+    worksheet.mergeCells('A6:I6');
+    const title5 = worksheet.getCell('A6');
+    title5.value = `Filter Data: ${filterInfo} | Total: ${konselingList.length} Layanan`;
+    title5.font = { name: 'Calibri', size: 9.5, italic: true, color: { argb: 'FF475569' } };
+    title5.alignment = { horizontal: 'center', vertical: 'middle' };
+  }
+
+  // Header Row 8
+  const headerRow = worksheet.getRow(8);
+  headerRow.values = [
+    'NO',
+    'NAMA SISWA',
+    'TANGGAL',
+    'KELAS',
+    'PERMASALAHAN SISWA',
+    'TINDAK LANJUT & SOLUSI',
+    'STATUS',
+    'GURU BK',
+    'FOTO BUKTI'
+  ];
+  headerRow.height = 28;
+  headerRow.eachCell((cell) => {
+    cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFFFD700' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0B1B47' } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    cell.border = {
+      top: { style: 'thin', color: { argb: 'FF000000' } },
+      left: { style: 'thin', color: { argb: 'FF000000' } },
+      bottom: { style: 'thin', color: { argb: 'FF000000' } },
+      right: { style: 'thin', color: { argb: 'FF000000' } }
+    };
+  });
+
+  // Set Column Widths
+  worksheet.columns = [
+    { key: 'no', width: 6 },
+    { key: 'nama', width: 25 },
+    { key: 'tanggal', width: 14 },
+    { key: 'kelas', width: 12 },
+    { key: 'permasalahan', width: 35 },
+    { key: 'tindakLanjut', width: 35 },
+    { key: 'status', width: 14 },
+    { key: 'guruBK', width: 22 },
+    { key: 'foto', width: 22 }
   ];
 
-  const subHeaders = ['', '', 'TANGGAL', 'KELAS', 'PERMASALAHAN SISWA', 'TINDAK LANJUT & SOLUSI', 'STATUS PENYELESAIAN', 'GURU BK'];
+  let startRow = 9;
 
-  const rows = konselingList.map((k, idx) => [
-    idx + 1,
-    k.namaSiswa,
-    k.tanggal,
-    k.kelas,
-    k.permasalahan,
-    k.tindakLanjut,
-    k.statusPenyelesaian || '-',
-    k.guruBK
-  ]);
+  for (let idx = 0; idx < konselingList.length; idx++) {
+    const k = konselingList[idx];
+    const currentRowIdx = startRow + idx;
+    const row = worksheet.getRow(currentRowIdx);
 
-  const worksheet = createFormattedSheet(
-    'LAPORAN LAYANAN BIMBINGAN KONSELING SMKN 1 BUNYU',
-    mainHeaders,
-    subHeaders,
-    rows,
-    [8, 28, 14, 15, 35, 35, 20, 25]
-  );
+    row.values = [
+      idx + 1,
+      k.namaSiswa,
+      k.tanggal,
+      k.kelas,
+      k.permasalahan,
+      k.tindakLanjut,
+      k.statusPenyelesaian || '-',
+      k.guruBK,
+      k.fotoDokumentasi ? '' : '(Tidak Ada Foto)'
+    ];
 
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Layanan BK');
-  XLSX.writeFile(workbook, `Laporan_Layanan_BK_${new Date().toISOString().split('T')[0]}.xlsx`);
+    row.height = k.fotoDokumentasi ? 65 : 28;
+
+    row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+      cell.font = { name: 'Calibri', size: 9.5 };
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        right: { style: 'thin', color: { argb: 'FFCBD5E1' } }
+      };
+
+      if (colNumber === 1 || colNumber === 3 || colNumber === 4 || colNumber === 7 || colNumber === 9) {
+        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      } else {
+        cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+      }
+    });
+
+    // Embed Native Image via ExcelJS if fotoDokumentasi exists
+    if (k.fotoDokumentasi) {
+      try {
+        const isPng = k.fotoDokumentasi.includes('png');
+        const imageId = workbook.addImage({
+          base64: k.fotoDokumentasi,
+          extension: isPng ? 'png' : 'jpeg'
+        });
+
+        worksheet.addImage(imageId, {
+          tl: { col: 8.1, row: currentRowIdx - 1 + 0.1 },
+          ext: { width: 110, height: 75 },
+          editAs: 'oneCell'
+        });
+      } catch (err) {
+        console.warn('Failed to embed native excel image:', err);
+      }
+    }
+  }
+
+  // Full Photo Gallery Appendix at the bottom
+  const itemsWithPhoto = konselingList.filter(item => !!item.fotoDokumentasi);
+  if (itemsWithPhoto.length > 0) {
+    let appendixRowIdx = startRow + konselingList.length + 2;
+
+    worksheet.mergeCells(`A${appendixRowIdx}:I${appendixRowIdx}`);
+    const appHeader = worksheet.getCell(`A${appendixRowIdx}`);
+    appHeader.value = `LAMPIRAN BUKTI DOKUMENTASI FOTO LAYANAN BK (${itemsWithPhoto.length} FOTO TERLAMPIR)`;
+    appHeader.font = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FFFFD700' } };
+    appHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0B1B47' } };
+    appHeader.alignment = { horizontal: 'center', vertical: 'middle' };
+    worksheet.getRow(appendixRowIdx).height = 30;
+
+    appendixRowIdx += 1;
+
+    for (const item of itemsWithPhoto) {
+      const cardStartRow = appendixRowIdx;
+      worksheet.mergeCells(`A${cardStartRow}:C${cardStartRow + 4}`);
+      worksheet.mergeCells(`D${cardStartRow}:I${cardStartRow + 4}`);
+
+      worksheet.getRow(cardStartRow).height = 24;
+      worksheet.getRow(cardStartRow + 1).height = 24;
+      worksheet.getRow(cardStartRow + 2).height = 24;
+      worksheet.getRow(cardStartRow + 3).height = 24;
+      worksheet.getRow(cardStartRow + 4).height = 24;
+
+      const descCell = worksheet.getCell(`D${cardStartRow}`);
+      descCell.value = `NAMA: ${item.namaSiswa} (${item.kelas})\nTANGGAL: ${item.tanggal} | STATUS: ${item.statusPenyelesaian || '-'}\nGURU BK: ${item.guruBK}\nPERMASALAHAN: ${item.permasalahan}\nTINDAK LANJUT: ${item.tindakLanjut}`;
+      descCell.font = { name: 'Calibri', size: 10 };
+      descCell.alignment = { horizontal: 'left', vertical: 'top', wrapText: true };
+
+      if (item.fotoDokumentasi) {
+        try {
+          const isPng = item.fotoDokumentasi.includes('png');
+          const imageId = workbook.addImage({
+            base64: item.fotoDokumentasi,
+            extension: isPng ? 'png' : 'jpeg'
+          });
+
+          worksheet.addImage(imageId, {
+            tl: { col: 0.1, row: cardStartRow - 1 + 0.1 },
+            ext: { width: 180, height: 115 },
+            editAs: 'oneCell'
+          });
+        } catch (err) {
+          console.warn('Failed to embed appendix image into Excel:', err);
+        }
+      }
+
+      appendixRowIdx += 6;
+    }
+  }
+
+  // Export buffer & download .xlsx
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Laporan_Layanan_BK_${filterInfo ? filterInfo.replace(/[^a-zA-Z0-9]/g, '_') : 'Semua'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
-// 4. Export Jurnal Harian to Excel
-export function exportJurnalExcel(jurnalList: JurnalHarian[]) {
+// 4. Export Filtered Jurnal Harian to Excel
+export function exportJurnalExcel(jurnalList: JurnalHarian[], filterInfo?: string) {
   const mainHeaders = [
     { title: 'NOMOR', rowSpan: 2 },
     { title: 'GURU BK', rowSpan: 2 },
@@ -250,7 +428,7 @@ export function exportJurnalExcel(jurnalList: JurnalHarian[]) {
   ]);
 
   const worksheet = createFormattedSheet(
-    'LAPORAN JURNAL HARIAN GURU BK SMKN 1 BUNYU',
+    `LAPORAN JURNAL HARIAN GURU BK SMKN 1 BUNYU ${filterInfo ? `(${filterInfo})` : ''}`,
     mainHeaders,
     subHeaders,
     rows,
@@ -259,11 +437,11 @@ export function exportJurnalExcel(jurnalList: JurnalHarian[]) {
 
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Jurnal Harian');
-  XLSX.writeFile(workbook, `Laporan_Jurnal_Harian_BK_${new Date().toISOString().split('T')[0]}.xlsx`);
+  XLSX.writeFile(workbook, `Laporan_Jurnal_Harian_BK_${filterInfo ? filterInfo.replace(/[^a-zA-Z0-9]/g, '_') : 'Semua'}_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
-// 5. Export Penilaian Harian to Excel
-export function exportPenilaianExcel(penilaianList: PenilaianHarian[]) {
+// 5. Export Filtered Penilaian Harian to Excel
+export function exportPenilaianExcel(penilaianList: PenilaianHarian[], filterInfo?: string) {
   const mainHeaders = [
     { title: 'NOMOR', rowSpan: 2 },
     { title: 'NAMA', rowSpan: 2 },
@@ -283,7 +461,7 @@ export function exportPenilaianExcel(penilaianList: PenilaianHarian[]) {
   ]);
 
   const worksheet = createFormattedSheet(
-    'LAPORAN PENILAIAN HARIAN SISWA SMKN 1 BUNYU',
+    `LAPORAN PENILAIAN HARIAN SISWA SMKN 1 BUNYU ${filterInfo ? `(${filterInfo})` : ''}`,
     mainHeaders,
     subHeaders,
     rows,
@@ -292,7 +470,7 @@ export function exportPenilaianExcel(penilaianList: PenilaianHarian[]) {
 
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Penilaian Harian');
-  XLSX.writeFile(workbook, `Laporan_Penilaian_Harian_${new Date().toISOString().split('T')[0]}.xlsx`);
+  XLSX.writeFile(workbook, `Laporan_Penilaian_Harian_${filterInfo ? filterInfo.replace(/[^a-zA-Z0-9]/g, '_') : 'Semua'}_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
 // 6. Export Full Database Multi-Sheet
@@ -629,5 +807,209 @@ export async function parseExcelFile(file: File): Promise<{
     reader.onerror = (err) => reject(err);
     reader.readAsArrayBuffer(file);
   });
+}
+
+// 7. Export Kolaborasi BK & Rekan Guru to Excel (Native .xlsx with Embedded Images)
+export async function exportKolaborasiExcel(kolaborasiList: KolaborasiGuru[], filterInfo?: string) {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Kolaborasi BK & Guru');
+
+  worksheet.views = [{ showGridLines: true }];
+
+  // Title Headers
+  worksheet.mergeCells('A1:J1');
+  const title1 = worksheet.getCell('A1');
+  title1.value = 'PEMERINTAH PROVINSI KALIMANTAN UTARA - DINAS PENDIDIKAN DAN KEBUDAYAAN';
+  title1.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFD700' } };
+  title1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0B1B47' } };
+  title1.alignment = { horizontal: 'center', vertical: 'middle' };
+
+  worksheet.mergeCells('A2:J2');
+  const title2 = worksheet.getCell('A2');
+  title2.value = 'SMK NEGERI 1 BUNYU';
+  title2.font = { name: 'Calibri', size: 15, bold: true, color: { argb: 'FFFFFFFF' } };
+  title2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0B1B47' } };
+  title2.alignment = { horizontal: 'center', vertical: 'middle' };
+
+  worksheet.mergeCells('A3:J3');
+  const title3 = worksheet.getCell('A3');
+  title3.value = 'Alamat: Jl. Pendidikan No. 1, Pulau Bunyu, Kab. Bulungan, Kalimantan Utara | Email: smkn1bunyu@gmail.com';
+  title3.font = { name: 'Calibri', size: 9, italic: true, color: { argb: 'FF334155' } };
+  title3.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+  title3.alignment = { horizontal: 'center', vertical: 'middle' };
+
+  worksheet.mergeCells('A5:J5');
+  const title4 = worksheet.getCell('A5');
+  title4.value = 'LAPORAN KOLABORASI PENYELESAIAN MASALAH SISWA (BK & REKAN GURU)';
+  title4.font = { name: 'Calibri', size: 13, bold: true, underline: true, color: { argb: 'FF0B1B47' } };
+  title4.alignment = { horizontal: 'center', vertical: 'middle' };
+
+  if (filterInfo) {
+    worksheet.mergeCells('A6:J6');
+    const title5 = worksheet.getCell('A6');
+    title5.value = `Filter Data: ${filterInfo} | Total: ${kolaborasiList.length} Kegiatan Kolaborasi`;
+    title5.font = { name: 'Calibri', size: 9.5, italic: true, color: { argb: 'FF475569' } };
+    title5.alignment = { horizontal: 'center', vertical: 'middle' };
+  }
+
+  // Header Row 8
+  const headerRow = worksheet.getRow(8);
+  headerRow.values = [
+    'NO',
+    'NAMA SISWA',
+    'KELAS',
+    'TANGGAL',
+    'MITRA KOLABORASI',
+    'NAMA REKAN GURU',
+    'BENTUK KOLABORASI & PERMASALAHAN',
+    'KESEPAKATAN SOLUSI',
+    'STATUS',
+    'FOTO BUKTI'
+  ];
+  headerRow.height = 28;
+  headerRow.eachCell((cell) => {
+    cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFFFD700' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0B1B47' } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    cell.border = {
+      top: { style: 'thin', color: { argb: 'FF000000' } },
+      left: { style: 'thin', color: { argb: 'FF000000' } },
+      bottom: { style: 'thin', color: { argb: 'FF000000' } },
+      right: { style: 'thin', color: { argb: 'FF000000' } }
+    };
+  });
+
+  worksheet.columns = [
+    { key: 'no', width: 6 },
+    { key: 'nama', width: 25 },
+    { key: 'kelas', width: 12 },
+    { key: 'tanggal', width: 14 },
+    { key: 'mitra', width: 22 },
+    { key: 'rekan', width: 24 },
+    { key: 'masalah', width: 32 },
+    { key: 'solusi', width: 35 },
+    { key: 'status', width: 18 },
+    { key: 'foto', width: 22 }
+  ];
+
+  let startRow = 9;
+
+  for (let idx = 0; idx < kolaborasiList.length; idx++) {
+    const k = kolaborasiList[idx];
+    const currentRowIdx = startRow + idx;
+    const row = worksheet.getRow(currentRowIdx);
+
+    row.values = [
+      idx + 1,
+      k.namaSiswa,
+      k.kelas,
+      k.tanggal,
+      k.mitraKolaborasi,
+      k.namaRekanGuru,
+      `[${k.bentukKolaborasi}] ${k.permasalahan}`,
+      k.rencanaSolusi,
+      k.statusPenyelesaian || '-',
+      k.fotoDokumentasi ? '' : '(Tidak Ada Foto)'
+    ];
+
+    row.height = k.fotoDokumentasi ? 65 : 28;
+
+    row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+      cell.font = { name: 'Calibri', size: 9.5 };
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        right: { style: 'thin', color: { argb: 'FFCBD5E1' } }
+      };
+
+      if (colNumber === 1 || colNumber === 3 || colNumber === 4 || colNumber === 9 || colNumber === 10) {
+        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      } else {
+        cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+      }
+    });
+
+    if (k.fotoDokumentasi) {
+      try {
+        const isPng = k.fotoDokumentasi.includes('png');
+        const imageId = workbook.addImage({
+          base64: k.fotoDokumentasi,
+          extension: isPng ? 'png' : 'jpeg'
+        });
+
+        worksheet.addImage(imageId, {
+          tl: { col: 9.1, row: currentRowIdx - 1 + 0.1 },
+          ext: { width: 110, height: 75 },
+          editAs: 'oneCell'
+        });
+      } catch (err) {
+        console.warn('Failed to embed native excel image in kolaborasi:', err);
+      }
+    }
+  }
+
+  // Full Photo Gallery Appendix
+  const itemsWithPhoto = kolaborasiList.filter(item => !!item.fotoDokumentasi);
+  if (itemsWithPhoto.length > 0) {
+    let appendixRowIdx = startRow + kolaborasiList.length + 2;
+
+    worksheet.mergeCells(`A${appendixRowIdx}:J${appendixRowIdx}`);
+    const appHeader = worksheet.getCell(`A${appendixRowIdx}`);
+    appHeader.value = `LAMPIRAN BUKTI DOKUMENTASI FOTO KOLABORASI GURU (${itemsWithPhoto.length} FOTO TERLAMPIR)`;
+    appHeader.font = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FFFFD700' } };
+    appHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0B1B47' } };
+    appHeader.alignment = { horizontal: 'center', vertical: 'middle' };
+    worksheet.getRow(appendixRowIdx).height = 30;
+
+    appendixRowIdx += 1;
+
+    for (const item of itemsWithPhoto) {
+      const cardStartRow = appendixRowIdx;
+      worksheet.mergeCells(`A${cardStartRow}:C${cardStartRow + 4}`);
+      worksheet.mergeCells(`D${cardStartRow}:J${cardStartRow + 4}`);
+
+      worksheet.getRow(cardStartRow).height = 24;
+      worksheet.getRow(cardStartRow + 1).height = 24;
+      worksheet.getRow(cardStartRow + 2).height = 24;
+      worksheet.getRow(cardStartRow + 3).height = 24;
+      worksheet.getRow(cardStartRow + 4).height = 24;
+
+      const descCell = worksheet.getCell(`D${cardStartRow}`);
+      descCell.value = `NAMA SISWA: ${item.namaSiswa} (${item.kelas})\nTANGGAL: ${item.tanggal} | STATUS: ${item.statusPenyelesaian || '-'}\nREKAN KOLABORASI: ${item.namaRekanGuru} (${item.mitraKolaborasi})\nBENTUK & MASALAH: [${item.bentukKolaborasi}] ${item.permasalahan}\nKESEPAKATAN SOLUSI: ${item.rencanaSolusi}`;
+      descCell.font = { name: 'Calibri', size: 10 };
+      descCell.alignment = { horizontal: 'left', vertical: 'top', wrapText: true };
+
+      if (item.fotoDokumentasi) {
+        try {
+          const isPng = item.fotoDokumentasi.includes('png');
+          const imageId = workbook.addImage({
+            base64: item.fotoDokumentasi,
+            extension: isPng ? 'png' : 'jpeg'
+          });
+
+          worksheet.addImage(imageId, {
+            tl: { col: 0.1, row: cardStartRow - 1 + 0.1 },
+            ext: { width: 180, height: 115 },
+            editAs: 'oneCell'
+          });
+        } catch (err) {
+          console.warn('Failed to embed appendix image into Excel:', err);
+        }
+      }
+
+      appendixRowIdx += 6;
+    }
+  }
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Laporan_Kolaborasi_Guru_BK_${filterInfo ? filterInfo.replace(/[^a-zA-Z0-9]/g, '_') : 'Semua'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 

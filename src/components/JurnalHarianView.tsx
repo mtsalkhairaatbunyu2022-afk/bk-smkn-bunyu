@@ -4,6 +4,8 @@ import { JurnalHarian } from '../types';
 import { printJurnalPDF } from '../utils/pdfUtils';
 import { exportJurnalExcel } from '../utils/excelUtils';
 import { exportJurnalWord } from '../utils/wordUtils';
+import { useConfirm } from '../context/ConfirmContext';
+import { MultiSelectDropdown } from './MultiSelectDropdown';
 
 interface JurnalHarianViewProps {
   jurnalList: JurnalHarian[];
@@ -18,8 +20,10 @@ export const JurnalHarianView: React.FC<JurnalHarianViewProps> = ({
   onUpdateJurnal,
   onDeleteJurnal
 }) => {
+  const { confirmAction } = useConfirm();
   const [searchTerm, setSearchTerm] = useState('');
   const [monthFilter, setMonthFilter] = useState('');
+  const [selectedAktivitasList, setSelectedAktivitasList] = useState<string[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<JurnalHarian | null>(null);
 
@@ -34,7 +38,9 @@ export const JurnalHarianView: React.FC<JurnalHarianViewProps> = ({
       (j.catatan || '').toLowerCase().includes(search) ||
       (j.guruBK || '').toLowerCase().includes(search);
     const matchMonth = !monthFilter || (j.tanggal || '').startsWith(monthFilter);
-    return matchSearch && matchMonth;
+    const matchAktivitas = selectedAktivitasList.length === 0 ||
+      selectedAktivitasList.some(act => (j.aktivitas || '').toLowerCase().includes(act.toLowerCase()));
+    return matchSearch && matchMonth && matchAktivitas;
   });
 
   const handleOpenAdd = () => {
@@ -46,7 +52,15 @@ export const JurnalHarianView: React.FC<JurnalHarianViewProps> = ({
     setIsModalOpen(true);
   };
 
-  const handleOpenEdit = (item: JurnalHarian) => {
+  const handleOpenEdit = async (item: JurnalHarian) => {
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Edit Jurnal',
+      message: `Apakah Anda yakin ingin mengedit catatan jurnal harian "${item.aktivitas}" (${item.tanggal})?`,
+      type: 'edit',
+      confirmText: 'Ya, Edit'
+    });
+    if (!confirmed) return;
+
     setEditingItem(item);
     setFormTanggal(item.tanggal);
     setFormAktivitas(item.aktivitas);
@@ -55,9 +69,32 @@ export const JurnalHarianView: React.FC<JurnalHarianViewProps> = ({
     setIsModalOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleDeleteItem = async (item: JurnalHarian) => {
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Hapus Jurnal',
+      message: `Apakah Anda yakin ingin menghapus data jurnal harian "${item.aktivitas}" (${item.tanggal})?`,
+      type: 'delete',
+      confirmText: 'Ya, Hapus'
+    });
+    if (confirmed) {
+      onDeleteJurnal(item.id);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formAktivitas.trim()) return;
+
+    const isEditing = !!editingItem;
+    const confirmed = await confirmAction({
+      title: isEditing ? 'Konfirmasi Simpan Edit Jurnal' : 'Konfirmasi Simpan Jurnal Baru',
+      message: isEditing
+        ? `Apakah Anda yakin ingin menyimpan perubahan jurnal harian "${formAktivitas}"?`
+        : `Apakah Anda yakin ingin menyimpan jurnal harian baru "${formAktivitas}"?`,
+      type: isEditing ? 'edit' : 'save',
+      confirmText: isEditing ? 'Ya, Simpan Edit' : 'Ya, Simpan'
+    });
+    if (!confirmed) return;
 
     if (editingItem) {
       onUpdateJurnal({
@@ -80,6 +117,54 @@ export const JurnalHarianView: React.FC<JurnalHarianViewProps> = ({
     setIsModalOpen(false);
   };
 
+  const handleExportExcelClick = async () => {
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Unduh Excel',
+      message: 'Apakah Anda yakin ingin mengunduh jurnal harian BK (Format Excel)?',
+      type: 'download',
+      confirmText: 'Ya, Unduh Excel'
+    });
+    if (!confirmed) return;
+
+    const activeFilterDesc = [
+      monthFilter ? `Bulan ${monthFilter}` : '',
+      searchTerm ? `Cari "${searchTerm}"` : ''
+    ].filter(Boolean).join(' | ');
+    exportJurnalExcel(filteredList, activeFilterDesc || 'Semua');
+  };
+
+  const handleExportWordClick = async () => {
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Unduh Word',
+      message: 'Apakah Anda yakin ingin mengunduh jurnal harian BK (Format Word)?',
+      type: 'download',
+      confirmText: 'Ya, Unduh Word'
+    });
+    if (!confirmed) return;
+
+    const activeFilterDesc = [
+      monthFilter ? `Bulan ${monthFilter}` : '',
+      searchTerm ? `Cari "${searchTerm}"` : ''
+    ].filter(Boolean).join(' | ');
+    exportJurnalWord(filteredList, activeFilterDesc || 'Semua');
+  };
+
+  const handleExportPDFClick = async () => {
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Unduh PDF',
+      message: 'Apakah Anda yakin ingin mengunduh jurnal harian BK (Format PDF)?',
+      type: 'download',
+      confirmText: 'Ya, Unduh PDF'
+    });
+    if (!confirmed) return;
+
+    const activeFilterDesc = [
+      monthFilter ? `Bulan ${monthFilter}` : '',
+      searchTerm ? `Cari "${searchTerm}"` : ''
+    ].filter(Boolean).join(' | ');
+    printJurnalPDF(filteredList, activeFilterDesc || 'Semua');
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-lg">
@@ -95,24 +180,25 @@ export const JurnalHarianView: React.FC<JurnalHarianViewProps> = ({
 
         <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={() => exportJurnalExcel(filteredList)}
+            onClick={handleExportExcelClick}
             className="px-3.5 py-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-xs font-bold transition-all flex items-center gap-1.5"
-            title="Unduh Jurnal Harian (Excel)"
+            title="Unduh Jurnal Harian Terpilih (Excel)"
           >
             <Download className="w-4 h-4" /> Unduh Excel
           </button>
           
           <button
-            onClick={() => exportJurnalWord(filteredList)}
+            onClick={handleExportWordClick}
             className="px-3.5 py-2.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 text-xs font-bold transition-all flex items-center gap-1.5"
-            title="Unduh Jurnal Harian (Word)"
+            title="Unduh Jurnal Harian Terpilih (Word)"
           >
             <FileText className="w-4 h-4 text-blue-400" /> Unduh Word
           </button>
 
           <button
-            onClick={() => printJurnalPDF(jurnalList)}
-            className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-indigo-500/30 text-xs font-bold transition-all flex items-center gap-2"
+            onClick={handleExportPDFClick}
+            className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-indigo-500/30 text-xs font-bold transition-all flex items-center gap-2 shadow"
+            title="Unduh Jurnal Harian Terpilih (PDF)"
           >
             <Printer className="w-4 h-4" /> Cetak PDF
           </button>
@@ -126,7 +212,7 @@ export const JurnalHarianView: React.FC<JurnalHarianViewProps> = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="relative">
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
@@ -137,6 +223,23 @@ export const JurnalHarianView: React.FC<JurnalHarianViewProps> = ({
             className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400/60"
           />
         </div>
+
+        <div>
+          <MultiSelectDropdown
+            options={[
+              'Bimbingan Klasikal Layanan Kelas',
+              'Konseling Individu Ruang BK',
+              'Konseling Kelompok',
+              'Kunjungan Rumah (Home Visit)',
+              'Konferensi Kasus Bersama Wali Kelas',
+              'Koordinasi & Kolaborasi Orang Tua'
+            ]}
+            selectedValues={selectedAktivitasList}
+            onChange={setSelectedAktivitasList}
+            placeholder="PILIH AKTIVITAS (Multi-Select)..."
+          />
+        </div>
+
         <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1">
           <label className="text-xs font-bold text-slate-400 shrink-0">Rekap Bulan:</label>
           <input
@@ -189,7 +292,7 @@ export const JurnalHarianView: React.FC<JurnalHarianViewProps> = ({
                         </button>
                         <button
                           type="button"
-                          onClick={() => onDeleteJurnal(item.id)}
+                          onClick={() => handleDeleteItem(item)}
                           className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-500/20 text-rose-400"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -236,10 +339,24 @@ export const JurnalHarianView: React.FC<JurnalHarianViewProps> = ({
 
               <div>
                 <label className="block text-slate-300 font-semibold mb-1">Aktivitas / Kegiatan Layanan</label>
+                <select
+                  onChange={(e) => {
+                    if (e.target.value) setFormAktivitas(e.target.value);
+                  }}
+                  className="w-full p-2 bg-slate-900 border border-slate-800 rounded-lg text-slate-300 text-xs focus:outline-none focus:border-amber-400/60 mb-1.5 cursor-pointer"
+                >
+                  <option value="">-- Pilih Jenis Layanan Umum (Opsional) --</option>
+                  <option value="Bimbingan Klasikal Layanan Kelas">Bimbingan Klasikal Layanan Kelas</option>
+                  <option value="Konseling Individu Ruang BK">Konseling Individu Ruang BK</option>
+                  <option value="Konseling Kelompok">Konseling Kelompok</option>
+                  <option value="Kunjungan Rumah (Home Visit)">Kunjungan Rumah (Home Visit)</option>
+                  <option value="Konferensi Kasus Bersama Wali Kelas">Konferensi Kasus Bersama Wali Kelas</option>
+                  <option value="Koordinasi & Kolaborasi Orang Tua">Koordinasi & Kolaborasi Orang Tua</option>
+                </select>
                 <input
                   type="text"
                   required
-                  placeholder="Contoh: Bimbingan Klasikal Kelas X TKJ 1..."
+                  placeholder="Atau ketik uraian aktivitas kegiatan secara manual..."
                   value={formAktivitas}
                   onChange={(e) => setFormAktivitas(e.target.value)}
                   className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60"

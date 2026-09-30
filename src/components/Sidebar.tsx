@@ -14,7 +14,10 @@ import {
   Moon,
   Home,
   Wifi,
-  WifiOff
+  WifiOff,
+  UserCheck,
+  Sparkles,
+  CalendarDays
 } from 'lucide-react';
 import { ActiveTab } from '../types';
 
@@ -48,9 +51,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'tatatertib', label: 'Tata Tertib', icon: FileText },
     { id: 'siswa', label: 'Data Siswa', icon: Users },
     { id: 'absensi', label: 'Absen Siswa', icon: Calendar },
+    { id: 'absensi_ibadah', label: 'Absensi Ibadah', icon: Sparkles },
+    { id: 'agenda_bk', label: 'Agenda & Kalender BK', icon: CalendarDays },
     { id: 'konseling', label: 'Bimbingan Konseling', icon: HeartHandshake },
     { id: 'jurnal', label: 'Jurnal Harian', icon: BookOpen },
-    { id: 'konseling_xi_tpmg', label: 'BK XI TPMG', icon: HeartHandshake },
+    { id: 'kolaborasi', label: 'Kolaborasi Guru', icon: UserCheck },
     { id: 'penilaian', label: 'Penilaian Harian', icon: Award },
   ];
 

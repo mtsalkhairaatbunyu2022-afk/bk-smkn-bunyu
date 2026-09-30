@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, Calendar, HeartHandshake, BookOpen, Award, ArrowRight, Activity, TrendingUp, CheckCircle, Shield, FileText } from 'lucide-react';
+import { Users, Calendar, HeartHandshake, BookOpen, Award, ArrowRight, Activity, TrendingUp, CheckCircle, Shield, FileText, UserCheck, CalendarDays, Sparkles } from 'lucide-react';
 import { Siswa, Absensi, Konseling, JurnalHarian, PenilaianHarian, ActiveTab } from '../types';
 
 interface DashboardViewProps {
@@ -55,20 +55,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 self-stretch sm:self-auto shrink-0">
+          <div className="flex flex-wrap items-center gap-2.5 self-stretch sm:self-auto shrink-0">
             <button
-              onClick={() => onNavigate('konseling')}
-              className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl font-bold text-xs bg-amber-400 text-slate-950 hover:bg-amber-300 shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2"
+              onClick={() => onNavigate('agenda_bk')}
+              className="flex-1 sm:flex-none px-3.5 py-2.5 rounded-xl font-bold text-xs bg-amber-400 text-slate-950 hover:bg-amber-300 shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2"
             >
-              <HeartHandshake className="w-4 h-4" />
-              <span>Input Konseling</span>
+              <CalendarDays className="w-4 h-4" />
+              <span>Agenda BK & Kalender</span>
             </button>
             <button
-              onClick={() => onNavigate('absensi')}
-              className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl font-bold text-xs bg-white/10 hover:bg-white/20 text-white border border-slate-600 transition-all flex items-center justify-center gap-2"
+              onClick={() => onNavigate('absensi_ibadah')}
+              className="flex-1 sm:flex-none px-3.5 py-2.5 rounded-xl font-bold text-xs bg-emerald-500/80 hover:bg-emerald-500 text-white border border-emerald-400/40 transition-all flex items-center justify-center gap-2"
             >
-              <Calendar className="w-4 h-4 text-emerald-400" />
-              <span>Rekap Absensi</span>
+              <Sparkles className="w-4 h-4 text-emerald-300" />
+              <span>Absensi Ibadah</span>
+            </button>
+            <button
+              onClick={() => onNavigate('kolaborasi')}
+              className="flex-1 sm:flex-none px-3.5 py-2.5 rounded-xl font-bold text-xs bg-indigo-500/80 hover:bg-indigo-500 text-white border border-indigo-400/40 transition-all flex items-center justify-center gap-2"
+            >
+              <UserCheck className="w-4 h-4 text-indigo-300" />
+              <span>Kolaborasi Guru</span>
             </button>
           </div>
         </div>

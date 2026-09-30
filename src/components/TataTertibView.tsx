@@ -4,6 +4,7 @@ import * as docx from 'docx-preview';
 import mammoth from 'mammoth';
 import * as pdfjsLib from 'pdfjs-dist';
 import { TataTertibDocument } from '../types';
+import { useConfirm } from '../context/ConfirmContext';
 
 // Set worker URL for pdfjs-dist locally
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
@@ -503,6 +504,7 @@ export const TataTertibView: React.FC<TataTertibViewProps> = ({
   onAddTataTertib,
   onDeleteTataTertib,
 }) => {
+  const { confirmAction } = useConfirm();
   const [isUploading, setIsUploading] = useState(false);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [uploadDraft, setUploadDraft] = useState<{ fileName: string; fileData: string; fileSizeFormatted: string; extractedText?: string } | null>(null);
@@ -530,15 +532,31 @@ export const TataTertibView: React.FC<TataTertibViewProps> = ({
 
   const activeDoc = tataTertibList.find(d => d.id === activeDocId) || tataTertibList[0];
 
-  const handleOpenEdit = (doc: TataTertibDocument) => {
+  const handleOpenEdit = async (doc: TataTertibDocument) => {
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Edit Dokumen',
+      message: `Apakah Anda yakin ingin mengedit/mengubah dokumen "${doc.fileName}"?`,
+      type: 'edit',
+      confirmText: 'Ya, Edit'
+    });
+    if (!confirmed) return;
+
     setEditingDoc(doc);
     setEditFileName(doc.fileName);
     setEditFileData(doc.fileData);
   };
 
-  const handleSaveEditDoc = (e: React.FormEvent) => {
+  const handleSaveEditDoc = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingDoc || !editFileName.trim()) return;
+
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Simpan Edit Dokumen',
+      message: `Apakah Anda yakin ingin menyimpan perubahan dokumen "${editFileName}"?`,
+      type: 'edit',
+      confirmText: 'Ya, Simpan Edit'
+    });
+    if (!confirmed) return;
 
     const updatedDoc: TataTertibDocument = {
       ...editingDoc,
@@ -638,7 +656,7 @@ export const TataTertibView: React.FC<TataTertibViewProps> = ({
     }
   };
 
-  const handleConfirmSaveUpload = (e: React.FormEvent) => {
+  const handleConfirmSaveUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!uploadDraft) return;
 
@@ -650,6 +668,14 @@ export const TataTertibView: React.FC<TataTertibViewProps> = ({
     if (origExt && !finalName.toLowerCase().endsWith(origExt.toLowerCase())) {
       finalName = `${finalName}${origExt}`;
     }
+
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Unggah Dokumen',
+      message: `Apakah Anda yakin ingin mengunggah dan menyimpan dokumen "${finalName}"?`,
+      type: 'upload',
+      confirmText: 'Ya, Unggah'
+    });
+    if (!confirmed) return;
 
     const newDoc: TataTertibDocument = {
       id: `tt-${Date.now()}`,
@@ -678,7 +704,15 @@ export const TataTertibView: React.FC<TataTertibViewProps> = ({
     }, 100);
   };
 
-  const handleDownload = (doc: TataTertibDocument) => {
+  const handleDownload = async (doc: TataTertibDocument) => {
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Unduh Dokumen',
+      message: `Apakah Anda yakin ingin mengunduh dokumen "${doc.fileName}"?`,
+      type: 'download',
+      confirmText: 'Ya, Unduh Dokumen'
+    });
+    if (!confirmed) return;
+
     const link = document.createElement('a');
     link.href = doc.fileData;
     link.download = doc.fileName;

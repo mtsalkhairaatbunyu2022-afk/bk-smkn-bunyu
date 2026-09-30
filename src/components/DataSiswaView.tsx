@@ -1,8 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { Users, Plus, Edit2, Trash2, Search, Upload, Download, X, Check, FileSpreadsheet, CheckCircle2, FileText } from 'lucide-react';
+import { Users, Plus, Edit2, Trash2, Search, Upload, Download, X, Check, FileSpreadsheet, CheckCircle2, FileText, Printer } from 'lucide-react';
 import { Siswa } from '../types';
 import { parseExcelFile, downloadTemplateExcelSiswa, exportSiswaExcel } from '../utils/excelUtils';
 import { exportSiswaWord } from '../utils/wordUtils';
+import { exportSiswaPDF } from '../utils/pdfUtils';
+import { useConfirm } from '../context/ConfirmContext';
+import { MultiSelectDropdown } from './MultiSelectDropdown';
 
 interface DataSiswaViewProps {
   siswaList: Siswa[];
@@ -23,8 +26,9 @@ export const DataSiswaView: React.FC<DataSiswaViewProps> = ({
   onImportExcel,
   onExportExcel
 }) => {
+  const { confirmAction } = useConfirm();
   const [searchTerm, setSearchTerm] = useState('');
-  const [kelasFilter, setKelasFilter] = useState('');
+  const [selectedKelasList, setSelectedKelasList] = useState<string[]>([]);
 
   // Modal Form State (Add / Edit)
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -49,7 +53,7 @@ export const DataSiswaView: React.FC<DataSiswaViewProps> = ({
   const [isImportConfirmOpen, setIsImportConfirmOpen] = useState(false);
   const [isProcessingFile, setIsProcessingFile] = useState(false);
 
-  // Filtered Siswa List based on search term & class filter
+  // Filtered Siswa List based on search term & multi-select class filter
   const filteredSiswa = useMemo(() => {
     return siswaList.filter(s => {
       const term = (searchTerm || '').toLowerCase();
@@ -58,10 +62,12 @@ export const DataSiswaView: React.FC<DataSiswaViewProps> = ({
         (s.nomor || '').toLowerCase().includes(term) ||
         (s.kelas || '').toLowerCase().includes(term) ||
         ((s.jurusan || '').toLowerCase().includes(term));
-      const matchKelas = !kelasFilter || (s.kelas || '').trim().toLowerCase() === (kelasFilter || '').trim().toLowerCase();
+      const matchKelas =
+        selectedKelasList.length === 0 ||
+        selectedKelasList.some(k => (s.kelas || '').trim().toLowerCase() === k.trim().toLowerCase());
       return matchSearch && matchKelas;
     });
-  }, [siswaList, searchTerm, kelasFilter]);
+  }, [siswaList, searchTerm, selectedKelasList]);
 
   // Group filtered siswa by kelas for class-based numbering
   const groupedSiswa = useMemo<Record<string, Siswa[]>>(() => {
@@ -102,16 +108,22 @@ export const DataSiswaView: React.FC<DataSiswaViewProps> = ({
   const handleConfirmSaveImport = async () => {
     if (pendingImportSiswa.length === 0) return;
 
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Unggah & Simpan Data',
+      message: `Apakah Anda yakin ingin mengimpor dan menyimpan ${pendingImportSiswa.length} data siswa dari file Excel ini ke database?`,
+      type: 'upload',
+      confirmText: 'Ya, Simpan Impor'
+    });
+    if (!confirmed) return;
+
     try {
       if (onAddSiswaBatch) {
         await onAddSiswaBatch(pendingImportSiswa);
       } else if (onImportExcel) {
-        // Fallback if needed
         for (const item of pendingImportSiswa) {
           onAddSiswa(item);
         }
       }
-      alert(`Berhasil menyimpan ${pendingImportSiswa.length} data siswa ke database!`);
       setIsImportConfirmOpen(false);
       setPendingImportSiswa([]);
       setUploadedFileName('');
@@ -128,7 +140,15 @@ export const DataSiswaView: React.FC<DataSiswaViewProps> = ({
     setIsModalOpen(true);
   };
 
-  const handleOpenEditModal = (item: Siswa) => {
+  const handleOpenEditModal = async (item: Siswa) => {
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Edit Data Siswa',
+      message: `Apakah Anda yakin ingin mengedit/mengubah data siswa ${item.nama}?`,
+      type: 'edit',
+      confirmText: 'Ya, Edit'
+    });
+    if (!confirmed) return;
+
     setEditingSiswa(item);
     setFormNomor(item.nomor);
     setFormNama(item.nama);
@@ -136,9 +156,32 @@ export const DataSiswaView: React.FC<DataSiswaViewProps> = ({
     setIsModalOpen(true);
   };
 
-  const handleSubmitForm = (e: React.FormEvent) => {
+  const handleDeleteItem = async (item: Siswa) => {
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Hapus Data Siswa',
+      message: `Apakah Anda yakin ingin menghapus data siswa ${item.nama} (${item.kelas})?`,
+      type: 'delete',
+      confirmText: 'Ya, Hapus'
+    });
+    if (confirmed) {
+      onDeleteSiswa(item.id);
+    }
+  };
+
+  const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formNama.trim()) return;
+
+    const isEditing = !!editingSiswa;
+    const confirmed = await confirmAction({
+      title: isEditing ? 'Konfirmasi Simpan Edit Siswa' : 'Konfirmasi Simpan Data Siswa',
+      message: isEditing
+        ? `Apakah Anda yakin ingin menyimpan perubahan data siswa ${formNama}?`
+        : `Apakah Anda yakin ingin menyimpan data siswa baru ${formNama}?`,
+      type: isEditing ? 'edit' : 'save',
+      confirmText: isEditing ? 'Ya, Simpan Edit' : 'Ya, Simpan'
+    });
+    if (!confirmed) return;
 
     if (editingSiswa) {
       onUpdateSiswa({
@@ -162,6 +205,46 @@ export const DataSiswaView: React.FC<DataSiswaViewProps> = ({
     setIsModalOpen(false);
   };
 
+  const handleDownloadTemplate = async () => {
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Unduh Template',
+      message: 'Apakah Anda yakin ingin mengunduh contoh format file Excel data siswa?',
+      type: 'download',
+      confirmText: 'Ya, Unduh'
+    });
+    if (confirmed) downloadTemplateExcelSiswa();
+  };
+
+  const handleExportExcelClick = async () => {
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Unduh Excel',
+      message: 'Apakah Anda yakin ingin mengunduh data siswa terpilih dalam format Excel?',
+      type: 'download',
+      confirmText: 'Ya, Unduh Excel'
+    });
+    if (confirmed) exportSiswaExcel(filteredSiswa, selectedKelasList.join(', ') || '');
+  };
+
+  const handleExportWordClick = async () => {
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Unduh Word',
+      message: 'Apakah Anda yakin ingin mengunduh data siswa terpilih dalam format Word?',
+      type: 'download',
+      confirmText: 'Ya, Unduh Word'
+    });
+    if (confirmed) exportSiswaWord(filteredSiswa, selectedKelasList.join(', ') || '');
+  };
+
+  const handleExportPDFClick = async () => {
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Unduh PDF',
+      message: 'Apakah Anda yakin ingin mengunduh data siswa terpilih dalam format PDF?',
+      type: 'download',
+      confirmText: 'Ya, Unduh PDF'
+    });
+    if (confirmed) exportSiswaPDF(filteredSiswa, selectedKelasList.join(', ') || '');
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Top Header Card */}
@@ -179,7 +262,7 @@ export const DataSiswaView: React.FC<DataSiswaViewProps> = ({
         <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
           {/* Template Excel Download Button */}
           <button
-            onClick={downloadTemplateExcelSiswa}
+            onClick={handleDownloadTemplate}
             className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 shadow"
             title="Unduh contoh format file Excel untuk import data siswa"
           >
@@ -200,24 +283,34 @@ export const DataSiswaView: React.FC<DataSiswaViewProps> = ({
             />
           </label>
 
-          {/* Export Excel */}
+          {/* Export Excel (Strictly Filtered) */}
           <button
-            onClick={() => exportSiswaExcel(siswaList)}
+            onClick={handleExportExcelClick}
             className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 text-xs font-bold transition-all flex items-center gap-1.5 shadow"
-            title="Unduh Data Siswa Format Excel"
+            title="Unduh Data Siswa Terpilih (Excel)"
           >
             <Download className="w-4 h-4 text-emerald-400" />
             <span>Export Excel</span>
           </button>
 
-          {/* Export Word */}
+          {/* Export Word (Strictly Filtered) */}
           <button
-            onClick={() => exportSiswaWord(siswaList)}
+            onClick={handleExportWordClick}
             className="px-3.5 py-2 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 text-xs font-bold transition-all flex items-center gap-1.5 shadow"
-            title="Unduh Data Siswa Format Word"
+            title="Unduh Data Siswa Terpilih (Word)"
           >
             <FileText className="w-4 h-4 text-blue-400" />
             <span>Export Word</span>
+          </button>
+
+          {/* Export PDF (Strictly Filtered) */}
+          <button
+            onClick={handleExportPDFClick}
+            className="px-3.5 py-2 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 text-xs font-bold transition-all flex items-center gap-1.5 shadow"
+            title="Unduh Data Siswa Terpilih (PDF)"
+          >
+            <Printer className="w-4 h-4 text-purple-400" />
+            <span>Export PDF</span>
           </button>
 
           {/* Tambah Siswa */}
@@ -244,18 +337,14 @@ export const DataSiswaView: React.FC<DataSiswaViewProps> = ({
           />
         </div>
 
-        <select
-          value={kelasFilter}
-          onChange={(e) => setKelasFilter(e.target.value)}
-          className="w-full sm:w-56 px-3 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-400/60 cursor-pointer font-bold"
-        >
-          <option value="">PILIH KELAS (SEMUA)</option>
-          {availableClassOptions.map((k) => (
-            <option key={k} value={k}>
-              KELAS: {k}
-            </option>
-          ))}
-        </select>
+        <div className="w-full sm:w-72">
+          <MultiSelectDropdown
+            options={availableClassOptions}
+            selectedValues={selectedKelasList}
+            onChange={setSelectedKelasList}
+            placeholder="PILIH KELAS (Dapat Lebih Dari 1)..."
+          />
+        </div>
       </div>
 
       {/* Table Section grouped by class */}
@@ -307,7 +396,7 @@ export const DataSiswaView: React.FC<DataSiswaViewProps> = ({
                             </button>
                             <button
                               type="button"
-                              onClick={() => onDeleteSiswa(item.id)}
+                              onClick={() => handleDeleteItem(item)}
                               className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-500/20 text-rose-400 transition-colors"
                               title="Hapus"
                             >
@@ -370,18 +459,25 @@ export const DataSiswaView: React.FC<DataSiswaViewProps> = ({
               <div>
                 <label className="block text-slate-300 font-semibold mb-1">Kelas & Jurusan</label>
                 <select
-                  required
                   value={formKelas}
                   onChange={(e) => setFormKelas(e.target.value)}
-                  className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60 cursor-pointer"
+                  className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400/60 cursor-pointer mb-1.5"
                 >
-                  <option value="">PILIH KELAS</option>
+                  <option value="">PILIH DARI DAFTAR KELAS</option>
                   {availableClassOptions.map((k) => (
                     <option key={k} value={k}>
                       {k}
                     </option>
                   ))}
                 </select>
+                <input
+                  type="text"
+                  required
+                  placeholder="Atau ketik kelas & jurusan secara manual..."
+                  value={formKelas}
+                  onChange={(e) => setFormKelas(e.target.value)}
+                  className="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-amber-400/60"
+                />
               </div>
 
               <div className="pt-3 flex items-center justify-between border-t border-slate-800 gap-3">

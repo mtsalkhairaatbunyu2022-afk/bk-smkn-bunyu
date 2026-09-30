@@ -1,8 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { Calendar, CheckCircle2, AlertCircle, Clock, XCircle, Download, Save, Filter, Trash2, Edit2, FileText, Search, X } from 'lucide-react';
+import { Calendar, CheckCircle2, AlertCircle, Clock, XCircle, Download, Save, Filter, Trash2, Edit2, FileText, Search, X, Printer } from 'lucide-react';
 import { Siswa, Absensi, StatusAbsensi } from '../types';
 import { exportAbsensiWord } from '../utils/wordUtils';
 import { exportAbsensiExcel } from '../utils/excelUtils';
+import { exportAbsensiPDF } from '../utils/pdfUtils';
+import { useConfirm } from '../context/ConfirmContext';
+import { MultiSelectDropdown } from './MultiSelectDropdown';
 
 interface AbsenSiswaViewProps {
   siswaList: Siswa[];
@@ -19,6 +22,7 @@ export const AbsenSiswaView: React.FC<AbsenSiswaViewProps> = ({
   onDeleteAbsensi,
   onExportExcel
 }) => {
+  const { confirmAction } = useConfirm();
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
   const [selectedKelas, setSelectedKelas] = useState<string>('XI TPMG');
@@ -26,6 +30,7 @@ export const AbsenSiswaView: React.FC<AbsenSiswaViewProps> = ({
 
   // Filter & Search states for Rekap Harian
   const [rekapSearchTerm, setRekapSearchTerm] = useState('');
+  const [rekapStatusList, setRekapStatusList] = useState<string[]>([]);
   const [showAllDates, setShowAllDates] = useState(false);
 
   // Edit Modal State for Absensi
@@ -46,9 +51,10 @@ export const AbsenSiswaView: React.FC<AbsenSiswaViewProps> = ({
     }
   }, [availableClasses, selectedKelas]);
 
-  // Students in selected class
+  // Students in selected class (strictly filtered)
   const classStudents = useMemo(() => {
-    return siswaList.filter(s => (s.kelas || '').trim() === (selectedKelas || '').trim());
+    if (!selectedKelas) return [];
+    return siswaList.filter(s => (s.kelas || '').trim().toLowerCase() === (selectedKelas || '').trim().toLowerCase());
   }, [siswaList, selectedKelas]);
 
   // Local Attendance State for Batch Input
@@ -81,7 +87,15 @@ export const AbsenSiswaView: React.FC<AbsenSiswaViewProps> = ({
     }));
   };
 
-  const handleSaveBatch = () => {
+  const handleSaveBatch = async () => {
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Simpan Absensi',
+      message: `Apakah Anda yakin ingin menyimpan rekam absensi kelas ${selectedKelas} tanggal ${selectedDate}?`,
+      type: 'save',
+      confirmText: 'Ya, Simpan'
+    });
+    if (!confirmed) return;
+
     const itemsToSave: Absensi[] = classStudents.map(s => {
       const state = currentAttendance[s.id] || { status: 'Hadir', catatan: '' };
       return {
@@ -96,11 +110,18 @@ export const AbsenSiswaView: React.FC<AbsenSiswaViewProps> = ({
     });
 
     onSaveAbsensiBatch(itemsToSave);
-    alert(`Absensi kelas ${selectedKelas} tanggal ${selectedDate} berhasil disimpan!`);
   };
 
   // Open Edit Modal for Single Absensi Entry
-  const handleOpenEdit = (item: Absensi) => {
+  const handleOpenEdit = async (item: Absensi) => {
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Edit Absensi',
+      message: `Apakah Anda yakin ingin mengedit data absensi ${item.namaSiswa}?`,
+      type: 'edit',
+      confirmText: 'Ya, Edit'
+    });
+    if (!confirmed) return;
+
     setEditingItem(item);
     setEditTanggal(item.tanggal);
     setEditNamaSiswa(item.namaSiswa);
@@ -110,10 +131,30 @@ export const AbsenSiswaView: React.FC<AbsenSiswaViewProps> = ({
     setIsEditModalOpen(true);
   };
 
+  const handleDeleteAbsensiItem = async (item: Absensi) => {
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Hapus Absensi',
+      message: `Apakah Anda yakin ingin menghapus data absensi ${item.namaSiswa} (${item.tanggal})?`,
+      type: 'delete',
+      confirmText: 'Ya, Hapus'
+    });
+    if (confirmed && onDeleteAbsensi) {
+      onDeleteAbsensi(item.id);
+    }
+  };
+
   // Submit Edit Absensi
-  const handleSaveEdit = (e: React.FormEvent) => {
+  const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingItem) return;
+
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Simpan Edit Absensi',
+      message: `Apakah Anda yakin ingin menyimpan perubahan data absensi ${editNamaSiswa}?`,
+      type: 'edit',
+      confirmText: 'Ya, Simpan Edit'
+    });
+    if (!confirmed) return;
 
     const updatedItem: Absensi = {
       ...editingItem,
@@ -126,7 +167,42 @@ export const AbsenSiswaView: React.FC<AbsenSiswaViewProps> = ({
 
     onSaveAbsensiBatch([updatedItem]);
     setIsEditModalOpen(false);
-    alert(`Data absensi ${editNamaSiswa} berhasil diperbarui!`);
+  };
+
+  const handleExportExcelClick = async () => {
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Unduh Excel',
+      message: 'Apakah Anda yakin ingin mengunduh rekap absensi siswa (Format Excel)?',
+      type: 'download',
+      confirmText: 'Ya, Unduh Excel'
+    });
+    if (confirmed) {
+      exportAbsensiExcel(exportTargetAbsensi, exportTargetStudents, selectedKelas, activePeriodeDescription);
+    }
+  };
+
+  const handleExportWordClick = async () => {
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Unduh Word',
+      message: 'Apakah Anda yakin ingin mengunduh rekap absensi siswa (Format Word)?',
+      type: 'download',
+      confirmText: 'Ya, Unduh Word'
+    });
+    if (confirmed) {
+      exportAbsensiWord(exportTargetAbsensi, selectedKelas, activePeriodeDescription, exportTargetStudents);
+    }
+  };
+
+  const handleExportPDFClick = async () => {
+    const confirmed = await confirmAction({
+      title: 'Konfirmasi Unduh PDF',
+      message: 'Apakah Anda yakin ingin mengunduh rekap absensi siswa (Format PDF)?',
+      type: 'download',
+      confirmText: 'Ya, Unduh PDF'
+    });
+    if (confirmed) {
+      exportAbsensiPDF(exportTargetAbsensi, exportTargetStudents, selectedKelas, activePeriodeDescription);
+    }
   };
 
   // Stats for current class & date
@@ -149,9 +225,11 @@ export const AbsenSiswaView: React.FC<AbsenSiswaViewProps> = ({
         a.kelas.toLowerCase().includes(rekapSearchTerm.toLowerCase()) ||
         a.status.toLowerCase().includes(rekapSearchTerm.toLowerCase()) ||
         (a.catatan || '').toLowerCase().includes(rekapSearchTerm.toLowerCase());
-      return matchDate && matchSearch;
+      const matchStatus = rekapStatusList.length === 0 ||
+        rekapStatusList.some(s => a.status.toLowerCase().includes(s.toLowerCase()));
+      return matchDate && matchSearch && matchStatus;
     });
-  }, [absensiList, selectedDate, showAllDates, rekapSearchTerm]);
+  }, [absensiList, selectedDate, showAllDates, rekapSearchTerm, rekapStatusList]);
 
   // Monthly Rekap Summary Calculation
   const monthlyRekapData = useMemo(() => {
@@ -180,6 +258,41 @@ export const AbsenSiswaView: React.FC<AbsenSiswaViewProps> = ({
       };
     });
   }, [classStudents, siswaList, absensiList, selectedMonth]);
+
+  // Filtered Students strictly based on selectedKelas (if selected)
+  const exportTargetStudents = useMemo(() => {
+    if (selectedKelas) {
+      return siswaList.filter(s => (s.kelas || '').trim().toLowerCase() === selectedKelas.trim().toLowerCase());
+    }
+    return siswaList;
+  }, [siswaList, selectedKelas]);
+
+  // Filtered Attendance records strictly matching active filter criteria
+  const exportTargetAbsensi = useMemo(() => {
+    let list = absensiList;
+    if (selectedKelas) {
+      list = list.filter(a => (a.kelas || '').trim().toLowerCase() === selectedKelas.trim().toLowerCase());
+    }
+    if (activeViewMode === 'rekap-bulanan') {
+      list = list.filter(a => (a.tanggal || '').startsWith(selectedMonth));
+    } else if (activeViewMode === 'rekap-harian' && !showAllDates) {
+      list = list.filter(a => a.tanggal === selectedDate);
+    }
+    if (rekapSearchTerm) {
+      const term = rekapSearchTerm.toLowerCase();
+      list = list.filter(a =>
+        a.namaSiswa.toLowerCase().includes(term) ||
+        a.kelas.toLowerCase().includes(term) ||
+        a.status.toLowerCase().includes(term) ||
+        (a.catatan || '').toLowerCase().includes(term)
+      );
+    }
+    return list;
+  }, [absensiList, selectedKelas, activeViewMode, selectedMonth, selectedDate, showAllDates, rekapSearchTerm]);
+
+  const activePeriodeDescription = activeViewMode === 'rekap-bulanan'
+    ? `Bulan ${selectedMonth}`
+    : (showAllDates ? 'Semua Tanggal' : `Tanggal ${selectedDate}`);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -220,19 +333,32 @@ export const AbsenSiswaView: React.FC<AbsenSiswaViewProps> = ({
           >
             Rekap Bulanan
           </button>
+
+          {/* Export Excel (Strictly Filtered) */}
           <button
-            onClick={() => exportAbsensiExcel(absensiList, siswaList)}
+            onClick={handleExportExcelClick}
             className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 text-xs font-bold transition-all flex items-center gap-1.5"
-            title="Unduh Rekap Absensi (Excel)"
+            title="Unduh Rekap Absensi Terpilih (Excel)"
           >
             <Download className="w-4 h-4" /> Unduh Excel
           </button>
+
+          {/* Export Word (Strictly Filtered) */}
           <button
-            onClick={() => exportAbsensiWord(absensiList, selectedKelas, selectedDate, siswaList)}
+            onClick={handleExportWordClick}
             className="px-3.5 py-2 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 text-xs font-bold transition-all flex items-center gap-1.5"
-            title="Unduh Rekap Absensi (Word)"
+            title="Unduh Rekap Absensi Terpilih (Word)"
           >
             <FileText className="w-4 h-4 text-blue-400" /> Unduh Word
+          </button>
+
+          {/* Export PDF (Strictly Filtered) */}
+          <button
+            onClick={handleExportPDFClick}
+            className="px-3.5 py-2 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 text-xs font-bold transition-all flex items-center gap-1.5"
+            title="Unduh Rekap Absensi Terpilih (PDF)"
+          >
+            <Printer className="w-4 h-4 text-purple-400" /> Unduh PDF
           </button>
         </div>
       </div>
@@ -265,13 +391,20 @@ export const AbsenSiswaView: React.FC<AbsenSiswaViewProps> = ({
           <select
             value={selectedKelas}
             onChange={(e) => setSelectedKelas(e.target.value)}
-            className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-400/60"
+            className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-400/60 mb-1.5"
           >
             <option value="">PILIH SALAH SATU</option>
             {availableClasses.map(k => (
               <option key={k} value={k}>{k}</option>
             ))}
           </select>
+          <input
+            type="text"
+            placeholder="Atau ketik kelas secara manual..."
+            value={selectedKelas}
+            onChange={(e) => setSelectedKelas(e.target.value)}
+            className="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-300 text-xs focus:outline-none focus:border-amber-400/60"
+          />
         </div>
 
         {/* Status Counts */}
@@ -413,6 +546,16 @@ export const AbsenSiswaView: React.FC<AbsenSiswaViewProps> = ({
                 {showAllDates ? 'Filter Tanggal Ini Only' : 'Tampilkan Semua Tanggal'}
               </button>
 
+              {/* Status Multi-Select Filter */}
+              <div className="w-56">
+                <MultiSelectDropdown
+                  options={['Hadir', 'Sakit', 'Izin', 'Terlambat', 'Alpha']}
+                  selectedValues={rekapStatusList}
+                  onChange={setRekapStatusList}
+                  placeholder="FILTER STATUS (Multi-Select)..."
+                />
+              </div>
+
               {/* Search Box */}
               <div className="relative flex-1 md:w-64">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -421,7 +564,7 @@ export const AbsenSiswaView: React.FC<AbsenSiswaViewProps> = ({
                   placeholder="Cari nama, kelas, status..."
                   value={rekapSearchTerm}
                   onChange={(e) => setRekapSearchTerm(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400/60"
+                  className="w-full pl-9 pr-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400/60"
                 />
               </div>
             </div>
@@ -474,7 +617,7 @@ export const AbsenSiswaView: React.FC<AbsenSiswaViewProps> = ({
                           </button>
                           <button
                             type="button"
-                            onClick={() => onDeleteAbsensi?.(item.id)}
+                            onClick={() => handleDeleteAbsensiItem(item)}
                             className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-500/20 text-rose-400 transition-colors"
                             title="Hapus Absensi"
                           >
