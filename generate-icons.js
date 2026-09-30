@@ -15,6 +15,8 @@ async function buildAllIcons() {
   // Root level PNG icons
   await sharp(svg).resize(192, 192).png().toFile(path.join(publicDir, 'icon-192x192.png'));
   await sharp(svg).resize(512, 512).png().toFile(path.join(publicDir, 'icon-512x512.png'));
+  await sharp(svg).resize(192, 192).png().toFile(path.join(publicDir, 'pwa-192x192.png'));
+  await sharp(svg).resize(512, 512).png().toFile(path.join(publicDir, 'pwa-512x512.png'));
   await sharp(svg).resize(180, 180).png().toFile(path.join(publicDir, 'apple-touch-icon.png'));
   await sharp(svg).resize(32, 32).png().toFile(path.join(publicDir, 'favicon.png'));
   await sharp(svg).resize(32, 32).png().toFile(path.join(publicDir, 'favicon.ico'));

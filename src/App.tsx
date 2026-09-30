@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { registerSW } from 'virtual:pwa-register';
 import { SplashScreen } from './components/SplashScreen';
 import { LandingPage } from './components/LandingPage';
 import { Header } from './components/Header';
@@ -100,20 +101,24 @@ export default function App() {
 
   // PWA Register & Install Prompt Handler
   useEffect(() => {
-    // Register Service Worker
-    if ('serviceWorker' in navigator) {
-      const registerSW = () => {
-        navigator.serviceWorker.register('/sw.js').then(
-          (reg) => console.log('ServiceWorker registered with scope:', reg.scope),
-          (err) => console.log('ServiceWorker registration failed:', err)
-        );
-      };
-
-      if (document.readyState === 'complete') {
-        registerSW();
-      } else {
-        window.addEventListener('load', registerSW);
-      }
+    // Register Service Worker with auto-update
+    let updateSW: ((reloadPage?: boolean) => Promise<void>) | undefined;
+    try {
+      updateSW = registerSW({
+        immediate: true,
+        onNeedRefresh() {
+          console.log('[PWA] New version ready, updating...');
+          if (updateSW) updateSW(true);
+        },
+        onOfflineReady() {
+          console.log('[PWA] Aplikasi siap bekerja 100% offline.');
+        },
+        onRegisterError(error) {
+          console.warn('[PWA] SW registration failed:', error);
+        }
+      });
+    } catch (err) {
+      console.warn('[PWA] registerSW error:', err);
     }
 
     // Capture beforeinstallprompt
@@ -563,6 +568,20 @@ export default function App() {
         onClose={() => setIsBackupModalOpen(false)}
         onRefreshData={loadAllData}
       />
+
+      {/* Offline Status Floating Toast Indicator */}
+      {!isOnline && (
+        <div className="fixed bottom-4 left-4 sm:left-auto sm:right-4 z-50 flex items-center gap-3 rounded-2xl bg-amber-500/95 backdrop-blur-md px-4 py-2.5 text-xs font-bold text-slate-950 shadow-2xl border border-amber-300">
+          <span className="relative flex h-3 w-3 shrink-0">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-950 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-slate-900"></span>
+          </span>
+          <div>
+            <div className="font-black tracking-tight">Mode Offline Aktif</div>
+            <div className="text-[10px] text-slate-900/90 font-medium">Aplikasi & database lokal tetap bekerja penuh tanpa kuota/internet</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
